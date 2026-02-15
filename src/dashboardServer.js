@@ -1521,6 +1521,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   const app = express();
   const webPort = Number(process.env.WEB_PORT || 3000);
   const webBaseUrl = String(process.env.WEB_BASE_URL || `http://localhost:${webPort}`).replace(/\/+$/, "");
+  const sessionCookieDomain = String(process.env.SESSION_COOKIE_DOMAIN || "").trim();
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
   const botPermissions = Number(process.env.BOT_PERMISSIONS || 2322443439053888);
@@ -1545,6 +1546,8 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         // Mark session cookies as secure when the public-facing base URL is HTTPS.
         // This helps in production behind a reverse proxy (nginx) while still working on localhost.
         secure: webBaseUrl.startsWith("https://"),
+        // Optional: share the session across subdomains (e.g. www + apex) to avoid OAuth state mismatch.
+        ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
         maxAge: 1000 * 60 * 60 * 24 * 7
       }
     })
