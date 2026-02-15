@@ -286,6 +286,57 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+const DASHBOARD_LANG_COOKIE = "adhan.dashboard_lang";
+const DASHBOARD_THEME_COOKIE = "adhan.dashboard_theme";
+
+function getCookieValue(req, name) {
+  const header = String(req?.headers?.cookie || "");
+  if (!header) {
+    return "";
+  }
+  const parts = header.split(";").map((part) => part.trim());
+  for (const part of parts) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    const k = part.slice(0, eq).trim();
+    if (k !== name) continue;
+    const v = part.slice(eq + 1);
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return v;
+    }
+  }
+  return "";
+}
+
+function appendSetCookie(res, cookieValue) {
+  const existing = res.getHeader("Set-Cookie");
+  if (!existing) {
+    res.setHeader("Set-Cookie", cookieValue);
+    return;
+  }
+  if (Array.isArray(existing)) {
+    res.setHeader("Set-Cookie", [...existing, cookieValue]);
+    return;
+  }
+  res.setHeader("Set-Cookie", [existing, cookieValue]);
+}
+
+function setCookie(res, name, value, { maxAgeSeconds, secure, domain } = {}) {
+  const encoded = encodeURIComponent(String(value ?? ""));
+  const attributes = [
+    "Path=/",
+    "SameSite=Lax",
+    "HttpOnly",
+    `Max-Age=${Number.isFinite(maxAgeSeconds) ? Math.max(0, Math.floor(maxAgeSeconds)) : 31536000}`
+  ];
+  if (secure) attributes.push("Secure");
+  if (domain) attributes.push(`Domain=${domain}`);
+  appendSetCookie(res, `${name}=${encoded}; ${attributes.join("; ")}`);
+}
+
 function normalizeDashboardLanguage(value) {
   return String(value || "english").trim().toLowerCase() === "arabic" ? "arabic" : "english";
 }
@@ -303,11 +354,19 @@ function getDashboardI18n(language) {
 }
 
 function getDashboardLanguage(req) {
-  return normalizeDashboardLanguage(req?.session?.dashboardLanguage);
+  const fromSession = req?.session?.dashboardLanguage;
+  if (fromSession) {
+    return normalizeDashboardLanguage(fromSession);
+  }
+  return normalizeDashboardLanguage(getCookieValue(req, DASHBOARD_LANG_COOKIE));
 }
 
 function getDashboardTheme(req) {
-  return normalizeDashboardTheme(req?.session?.dashboardTheme);
+  const fromSession = req?.session?.dashboardTheme;
+  if (fromSession) {
+    return normalizeDashboardTheme(fromSession);
+  }
+  return normalizeDashboardTheme(getCookieValue(req, DASHBOARD_THEME_COOKIE));
 }
 
 function safeReturnPath(value) {
@@ -1531,6 +1590,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   const webPort = Number(process.env.WEB_PORT || 3000);
   const webBaseUrl = String(process.env.WEB_BASE_URL || `http://localhost:${webPort}`).replace(/\/+$/, "");
   const sessionCookieDomain = String(process.env.SESSION_COOKIE_DOMAIN || "").trim();
+  const baseUrlIsHttps = webBaseUrl.startsWith("https://");
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
   const botPermissions = Number(process.env.BOT_PERMISSIONS || 2322443439053888);
@@ -1554,7 +1614,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         sameSite: "lax",
         // Mark session cookies as secure when the public-facing base URL is HTTPS.
         // This helps in production behind a reverse proxy (nginx) while still working on localhost.
-        secure: webBaseUrl.startsWith("https://"),
+        secure: baseUrlIsHttps,
         // Optional: share the session across subdomains (e.g. www + apex) to avoid OAuth state mismatch.
         ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
         maxAge: 1000 * 60 * 60 * 24 * 7
@@ -1566,6 +1626,8 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   app.post("/dashboard/language", (req, res) => {
     const nextLanguage = normalizeDashboardLanguage(req.body.dashboard_language);
     req.session.dashboardLanguage = nextLanguage;
+    // Persist preference even if the session cookie doesn't stick (common behind subdomain swaps).
+    setCookie(res, DASHBOARD_LANG_COOKIE, nextLanguage, { secure: baseUrlIsHttps, domain: sessionCookieDomain });
     const returnPath = safeReturnPath(req.body.return_to || req.get("referer") || "/");
     res.redirect(returnPath);
   });
@@ -1573,6 +1635,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   app.post("/dashboard/theme", (req, res) => {
     const nextTheme = normalizeDashboardTheme(req.body.theme);
     req.session.dashboardTheme = nextTheme;
+    setCookie(res, DASHBOARD_THEME_COOKIE, nextTheme, { secure: baseUrlIsHttps, domain: sessionCookieDomain });
     const returnPath = safeReturnPath(req.body.return_to || req.get("referer") || "/");
     res.redirect(returnPath);
   });
