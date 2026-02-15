@@ -1,6 +1,7 @@
 ﻿const crypto = require("node:crypto");
 const path = require("node:path");
-const { ChannelType, PermissionsBitField } = require("discord.js");
+const discordJs = require("discord.js");
+const { ChannelType, PermissionsBitField } = discordJs;
 const express = require("express");
 const session = require("express-session");
 
@@ -15,6 +16,14 @@ const {
   normalizeHadithGrade
 } = require("./islamicContentService");
 const { resolveCityCountryLocation } = require("./prayerTimesService");
+
+if (!ChannelType || !PermissionsBitField?.Flags) {
+  const version = discordJs?.version ? String(discordJs.version) : "unknown";
+  throw new Error(
+    `Incompatible discord.js version (${version}). This project requires discord.js v14.x. ` +
+      `Fix: run "npm install" in the project root (or reinstall discord.js@14).`
+  );
+}
 
 const MANAGE_GUILD_FLAG = BigInt(PermissionsBitField.Flags.ManageGuild);
 const DEFAULT_HADITH_TIME = "20:00";
