@@ -16,6 +16,13 @@ REM - DNS A/AAAA for DOMAIN points to this VPS
 REM - Inbound ports 80 and 443 are reachable from the internet
 REM - Nginx for Windows is installed (this script configures it; it doesn't install it)
 
+title Win-ACME + Nginx HTTPS Setup
+
+REM Step-based progress bar (not time-based).
+set "TOTAL_STEPS=9"
+set "STEP=0"
+call :progress "Starting..."
+
 REM ====== CONFIG (EDIT THESE) ======
 set "DOMAIN=adhan-bot.online"
 set "UPSTREAM=http://127.0.0.1:3010"
@@ -36,28 +43,35 @@ set "INCLUDE_WWW=0"
 REM =================================
 
 REM Admin check
+call :progress "Checking Administrator permissions..."
 net session >nul 2>&1
 if not "%errorlevel%"=="0" (
   echo ERROR: Run this as Administrator.
+  call :done_pause
   exit /b 1
 )
 
 REM Validate nginx paths
+call :progress "Validating nginx installation paths..."
 if not exist "%NGINX_DIR%\nginx.exe" (
   echo ERROR: nginx.exe not found at "%NGINX_DIR%\nginx.exe"
+  call :done_pause
   exit /b 2
 )
 if not exist "%NGINX_DIR%\conf\nginx.conf" (
   echo ERROR: nginx.conf not found at "%NGINX_DIR%\conf\nginx.conf"
+  call :done_pause
   exit /b 3
 )
 
 REM Open firewall ports (idempotent)
+call :progress "Opening Windows Firewall for ports 80/443..."
 echo Opening Windows Firewall ports 80/443 (if not already open)...
 netsh advfirewall firewall add rule name="Nginx HTTP (80)" dir=in action=allow protocol=TCP localport=80 >nul 2>&1
 netsh advfirewall firewall add rule name="Nginx HTTPS (443)" dir=in action=allow protocol=TCP localport=443 >nul 2>&1
 
 REM Create folders
+call :progress "Creating ACME webroot and SSL folders..."
 set "CONF_D_DIR=%NGINX_DIR%\conf\conf.d"
 set "WEBROOT=%NGINX_DIR%\acme-webroot"
 set "CHALLENGE_DIR=%WEBROOT%\.well-known\acme-challenge"
@@ -68,6 +82,7 @@ if not exist "%CHALLENGE_DIR%" mkdir "%CHALLENGE_DIR%" >nul
 if not exist "%SSL_DIR%" mkdir "%SSL_DIR%" >nul
 
 REM Make sure nginx.conf includes conf.d/*.conf inside the http {} block
+call :progress "Ensuring nginx.conf includes conf.d\\*.conf..."
 echo Ensuring nginx includes conf.d\*.conf ...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$nginxConf = Join-Path '%NGINX_DIR%' 'conf\\nginx.conf';" ^
@@ -89,10 +104,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "[IO.File]::WriteAllLines($nginxConf, $out)"
 if "%errorlevel%"=="2" (
   echo ERROR: Failed to patch nginx.conf (could not find http { block).
+  call :done_pause
   exit /b 4
 )
 
 REM Write nginx vhost
+call :progress "Writing nginx site config (HTTP first)..."
 set "VHOST=%CONF_D_DIR%\%DOMAIN%.conf"
 set "VHOST_TMP=%CONF_D_DIR%\%DOMAIN%.tmp.conf"
 set "RELOAD_SCRIPT=%NGINX_DIR%\reload-nginx.bat"
@@ -182,6 +199,7 @@ echo Writing temporary HTTP-only vhost...
 ) > "%VHOST%"
 
 REM Write reload script for win-acme renewals
+call :progress "Writing nginx reload hook for renewals..."
 echo Writing nginx reload script to "%RELOAD_SCRIPT%" ...
 (
   echo @echo off
@@ -191,10 +209,12 @@ echo Writing nginx reload script to "%RELOAD_SCRIPT%" ...
 ) > "%RELOAD_SCRIPT%"
 
 REM Start or reload nginx
+call :progress "Testing + starting/reloading nginx..."
 echo Testing nginx config...
 "%NGINX_DIR%\nginx.exe" -t
 if not "%errorlevel%"=="0" (
   echo ERROR: nginx config test failed. Fix nginx.conf / conf.d config and rerun.
+  call :done_pause
   exit /b 5
 )
 
@@ -208,6 +228,7 @@ if "%errorlevel%"=="0" (
 )
 
 REM Install win-acme
+call :progress "Installing win-acme (wacs.exe) if needed..."
 if not exist "%WACS_DIR%\wacs.exe" (
   echo Downloading win-acme...
   if not exist "%WACS_DIR%" mkdir "%WACS_DIR%" >nul
@@ -216,6 +237,7 @@ if not exist "%WACS_DIR%\wacs.exe" (
   if not "%errorlevel%"=="0" (
     echo ERROR: Failed to download win-acme from:
     echo   %WACS_ZIP_URL%
+    call :done_pause
     exit /b 6
   )
   echo Extracting win-acme to "%WACS_DIR%" ...
@@ -223,11 +245,13 @@ if not exist "%WACS_DIR%\wacs.exe" (
     "Expand-Archive -Force -Path '%WACS_ZIP%' -DestinationPath '%WACS_DIR%'; Remove-Item -Force '%WACS_ZIP%'"
   if not exist "%WACS_DIR%\wacs.exe" (
     echo ERROR: wacs.exe not found after extraction.
+    call :done_pause
     exit /b 7
   )
 )
 
 REM Request certificate (PEM files for nginx) and configure renewal to reload nginx
+call :progress "Requesting Let's Encrypt certificate via win-acme..."
 echo Requesting/renewing certificate for %SERVER_NAMES% ...
 set "HOST_ARG=%DOMAIN%"
 if "%INCLUDE_WWW%"=="1" set "HOST_ARG=%DOMAIN%,www.%DOMAIN%"
@@ -252,10 +276,12 @@ if not "%errorlevel%"=="0" (
   echo - DNS for %DOMAIN% points to this VPS
   echo - Port 80 is reachable externally
   echo - http://%DOMAIN%/.well-known/acme-challenge/test works (served by nginx)
+  call :done_pause
   exit /b 8
 )
 
 REM Switch to full HTTPS config (now that cert files exist), then reload
+call :progress "Enabling HTTPS config and reloading nginx..."
 echo Enabling HTTPS vhost and reloading nginx...
 copy /Y "%VHOST_TMP%" "%VHOST%" >nul
 del /Q "%VHOST_TMP%" >nul 2>&1
@@ -263,6 +289,7 @@ del /Q "%VHOST_TMP%" >nul 2>&1
 "%NGINX_DIR%\nginx.exe" -t
 if not "%errorlevel%"=="0" (
   echo ERROR: nginx config test failed after enabling HTTPS. Check cert paths and rerun.
+  call :done_pause
   exit /b 9
 )
 call "%RELOAD_SCRIPT%"
@@ -277,5 +304,33 @@ echo Next steps for your dashboard:
 echo - Set WEB_BASE_URL=https://%DOMAIN% in your .env and restart the Node app
 echo - Add https://%DOMAIN%/auth/callback to Discord OAuth Redirect URLs (and Auth0 if you're using it)
 echo.
+call :done_pause
 exit /b 0
 
+REM === helpers ===
+:progress
+set /a STEP+=1
+if %STEP% gtr %TOTAL_STEPS% set "STEP=%TOTAL_STEPS%"
+set "MSG=%~1"
+call :render_bar %STEP% %TOTAL_STEPS% "%MSG%"
+exit /b 0
+
+:render_bar
+set "CUR=%~1"
+set "TOT=%~2"
+set "MSG=%~3"
+set /a PCT=CUR*100/TOT
+set /a WIDTH=28
+set /a FILLED=CUR*WIDTH/TOT
+set "BAR="
+for /l %%i in (1,1,%WIDTH%) do (
+  if %%i leq !FILLED! (set "BAR=!BAR!#") else (set "BAR=!BAR!-")
+)
+echo [!BAR!] !PCT!%%  (!CUR!/!TOT!)  !MSG!
+exit /b 0
+
+:done_pause
+echo.
+echo Press any key to close this window...
+pause >nul
+exit /b 0
