@@ -78,6 +78,17 @@ const DASHBOARD_I18N = {
     themeAriaLabel: "Theme",
     themeLightLabel: "Light",
     themeDarkLabel: "Dark",
+    sectionsTitle: "Sections",
+    sectionLocation: "Location",
+    sectionChannels: "Channels",
+    sectionPrePrayer: "Before Prayer",
+    sectionAzkar: "Azkar",
+    sectionHadith: "Hadith",
+    sectionReminders: "Reminders",
+    sectionSchedule: "Schedule",
+    sectionServers: "Servers",
+    sectionInstant: "Instant Actions",
+    sectionData: "Data Controls",
     homeTitle: "Prayer reminders, azkar, hadith, and voice adhan in one place",
     homeDescription:
       "Configure everything from web: prayer location, channels, voice playback, role mentions, DM reminders, random azkar intervals, and daily hadith timing with grade filtering.",
@@ -184,6 +195,17 @@ const DASHBOARD_I18N = {
     themeAriaLabel: "المظهر",
     themeLightLabel: "فاتح",
     themeDarkLabel: "داكن",
+    sectionsTitle: "الأقسام",
+    sectionLocation: "الموقع",
+    sectionChannels: "القنوات",
+    sectionPrePrayer: "قبل الصلاة",
+    sectionAzkar: "الأذكار",
+    sectionHadith: "الأحاديث",
+    sectionReminders: "التذكيرات",
+    sectionSchedule: "الجدول",
+    sectionServers: "السيرفرات",
+    sectionInstant: "إرسال فوري",
+    sectionData: "البيانات",
     homeTitle: "تنبيهات الصلاة والأذكار والأحاديث والأذان الصوتي في مكان واحد",
     homeDescription:
       "اضبط كل شيء من الويب: موقع الصلاة، القنوات، تشغيل الصوت، رتبة المنشن، تذكيرات الخاص، فواصل الأذكار العشوائية، ووقت الحديث اليومي مع فلتر الدرجة.",
@@ -748,11 +770,6 @@ function renderLayout({
   const normalizedLanguage = normalizeDashboardLanguage(dashboardLanguage);
   const normalizedTheme = normalizeDashboardTheme(dashboardTheme);
   const i18n = getDashboardI18n(normalizedLanguage);
-  const safeCurrent = safeReturnPath(returnPath || "/");
-  const safeCurrentPath = safeCurrent.split("?")[0] || "/";
-  const onDashboard = safeCurrentPath === "/dashboard" || safeCurrentPath.startsWith("/dashboard/");
-  const onPrivacy = safeCurrentPath === "/privacy";
-  const onTerms = safeCurrentPath === "/terms";
   const languageOptions = DASHBOARD_LANGUAGE_CHOICES.map((choice) =>
     optionTag({
       value: choice.value,
@@ -812,20 +829,6 @@ function renderLayout({
       </div>
       <p>© ${new Date().getFullYear()} ${escapeHtml(i18n.brandTitle)}. ${escapeHtml(i18n.footerRights)}</p>
     </footer>
-  `;
-  const navHtml = `
-    <nav class="nav" aria-label="Site">
-      <a class="nav-link ${safeCurrentPath === "/" ? "active" : ""}" href="/" ${safeCurrentPath === "/" ? 'aria-current="page"' : ""}>Home</a>
-      <a class="nav-link ${onDashboard ? "active" : ""}" href="/dashboard" ${onDashboard ? 'aria-current="page"' : ""}>${escapeHtml(
-        i18n.dashboard
-      )}</a>
-      <a class="nav-link ${onPrivacy ? "active" : ""}" href="/privacy" ${onPrivacy ? 'aria-current="page"' : ""}>${escapeHtml(
-        i18n.privacyPolicy
-      )}</a>
-      <a class="nav-link ${onTerms ? "active" : ""}" href="/terms" ${onTerms ? 'aria-current="page"' : ""}>${escapeHtml(
-        i18n.termsOfService
-      )}</a>
-    </nav>
   `;
 
   return `<!doctype html>
@@ -900,12 +903,7 @@ function renderLayout({
     }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--text); font-family:var(--font-sans); background:var(--bg-a),var(--bg-b),var(--bg-c),var(--bg-d, none); min-height:100vh; }
-    .wrap { width:min(1100px, calc(100% - 40px)); margin:0 auto; }
-    .shell { display:flex; min-height:100vh; }
-    [dir="rtl"] .shell { flex-direction:row-reverse; }
-    .sidebar { width:290px; padding:18px 14px; background:var(--panel); border-inline-end:1px solid var(--border); backdrop-filter:saturate(120%) blur(10px); position:sticky; top:0; height:100vh; overflow:auto; }
-    .sidebar-inner { display:flex; flex-direction:column; gap:14px; height:100%; }
-    .page { flex:1; min-width:0; padding:18px 0 0; }
+    .wrap { width:min(1100px,94vw); margin:0 auto; }
     .topbar { display:flex; justify-content:space-between; gap:12px; padding:20px 0; align-items:center; }
     .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
     .brand-icon { width:44px; height:44px; border-radius:999px; border:1px solid rgba(230,207,139,.62); box-shadow:0 0 0 3px var(--brand-ring); background:var(--brand-bg); object-fit:cover; }
@@ -922,24 +920,6 @@ function renderLayout({
     .inline-form { display:inline; }
     .user-badge { display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(230,207,139,.3); border-radius:999px; padding:6px 12px 6px 6px; background:var(--panel); }
     .user-badge img { width:26px; height:26px; border-radius:999px; border:1px solid rgba(230,207,139,.6); }
-    .brand.sidebar-brand { padding:8px 10px; border-radius:14px; background:var(--card-2); border:1px solid rgba(230,207,139,.16); }
-    .brand.sidebar-brand .brand-icon { width:40px; height:40px; }
-    .brand.sidebar-brand .brand-text strong { font-size:1.1rem; }
-    .brand.sidebar-brand .brand-text span { font-size:.82rem; }
-
-    .nav { display:grid; gap:8px; }
-    .nav-link { display:flex; align-items:center; justify-content:space-between; text-decoration:none; color:var(--text); border:1px solid transparent; background:transparent; padding:10px 12px; border-radius:14px; font-weight:800; }
-    .nav-link:hover { background:var(--field-2); border-color:var(--border); }
-    .nav-link.active { background:linear-gradient(90deg, rgba(230,207,139,.18), rgba(94,196,168,.12)); border-color:var(--border-2); }
-    html[data-theme="light"] .nav-link.active { background:linear-gradient(90deg, rgba(183,139,47,.14), rgba(28,139,115,.08)); }
-
-    .sidebar-prefs { display:grid; gap:10px; padding:12px; border-radius:18px; background:var(--card-2); border:1px solid rgba(230,207,139,.16); }
-    .sidebar-actions { margin-top:auto; display:grid; gap:10px; }
-    .sidebar-actions .btn { width:100%; }
-    .sidebar-actions .user-badge { width:100%; justify-content:center; }
-    .lang-form, .theme-form { width:100%; }
-    .lang-select { width:100%; }
-    .switch { width:100%; justify-content:space-between; }
     .card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; box-shadow:var(--shadow); backdrop-filter:saturate(120%) blur(10px); }
     .hero h1, .section-title { font-family:var(--font-serif); color:var(--gold-2); margin:0 0 10px; }
     .hero h1 { font-size:2.2rem; }
@@ -950,6 +930,18 @@ function renderLayout({
     .feature h3 { margin:0 0 6px; font-size:1rem; }
     .feature p { margin:0; color:var(--muted); font-size:.93rem; }
     .stack { display:grid; gap:12px; }
+    .settings-shell { display:grid; gap:14px; grid-template-columns:250px 1fr; align-items:start; }
+    [dir="rtl"] .settings-shell { grid-template-columns:1fr 250px; }
+    [dir="rtl"] .settings-nav { grid-column:2; }
+    [dir="rtl"] .settings-main { grid-column:1; }
+    .settings-nav { position:sticky; top:14px; align-self:start; background:var(--card-2); border:1px solid rgba(230,207,139,.16); border-radius:18px; padding:12px; }
+    .settings-nav-title { font:800 1.05rem var(--font-serif); color:var(--gold-2); margin:0 0 10px; }
+    .settings-nav a { display:block; padding:9px 10px; border-radius:14px; text-decoration:none; color:var(--text); font-weight:800; border:1px solid transparent; }
+    .settings-nav a:hover { background:var(--field-2); border-color:var(--border); }
+    .settings-nav a.muted { color:var(--muted); font-weight:700; }
+    .settings-main { min-width:0; }
+    .settings-anchor { scroll-margin-top:90px; }
+    .sticky-actions { position:sticky; bottom:14px; background:var(--card); border:1px solid var(--border); border-radius:18px; padding:12px; box-shadow:var(--shadow); display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
     .grid-2 { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
     .guild-list { display:grid; gap:10px; }
     .guild-item { display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(230,207,139,.2); border-radius:14px; padding:12px; background:var(--panel); }
@@ -966,7 +958,7 @@ function renderLayout({
     .prayer-pill { display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:var(--field-2); }
     .prayer-pill span { font-weight:700; color:var(--text); }
     .form-actions { margin-top:14px; display:flex; flex-wrap:wrap; gap:10px; }
-    .flash { margin:0 0 12px; border-radius:12px; padding:10px 14px; font-weight:800; }
+    .flash { width:min(1100px,94vw); margin:0 auto 12px; border-radius:12px; padding:10px 14px; font-weight:800; }
     .flash.success { background:rgba(94,196,168,.22); color:var(--text); border:1px solid rgba(94,196,168,.5); }
     .flash.error { background:rgba(255,159,137,.2); color:var(--text); border:1px solid rgba(255,159,137,.55); }
     .footer { margin:22px auto 26px; text-align:center; color:var(--muted-2); font-size:.9rem; }
@@ -985,45 +977,32 @@ function renderLayout({
     html[data-theme="light"] .switch-text { color:var(--muted-2); }
     html[data-theme="dark"] .switch-text { color:var(--muted-2); }
     @media (max-width:900px) {
-      .shell { flex-direction:column; }
-      [dir="rtl"] .shell { flex-direction:column; }
-      .sidebar { width:100%; height:auto; position:static; border-inline-end:0; border-bottom:1px solid var(--border); }
-      .sidebar-inner { height:auto; }
-      .nav { grid-auto-flow:column; grid-auto-columns:max-content; display:flex; flex-wrap:nowrap; overflow:auto; padding-bottom:6px; }
-      .sidebar-actions { margin-top:0; grid-template-columns:1fr; }
-      .sidebar-actions .btn { width:auto; }
+      .settings-shell { grid-template-columns:1fr; }
+      [dir="rtl"] .settings-shell { grid-template-columns:1fr; }
+      .settings-nav { position:static; display:flex; gap:8px; overflow:auto; padding:10px; }
+      .settings-nav-title { display:none; }
+      .settings-nav a { white-space:nowrap; }
     }
-    @media (max-width:700px) { .hero h1{font-size:1.8rem;} }
+    @media (max-width:700px) { .hero h1{font-size:1.8rem;} .topbar{flex-direction:column;align-items:flex-start;} .actions{justify-content:flex-start;} }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar">
-      <div class="sidebar-inner">
-        <a class="brand sidebar-brand" href="/">
-          <img class="brand-icon" src="${escapeHtml(logoUrl)}" alt="Adhan Reminder logo" />
-          <span class="brand-text"><strong>${escapeHtml(i18n.brandTitle)}</strong><span>${escapeHtml(
-            i18n.brandSubtitle
-          )}</span></span>
-        </a>
-        ${navHtml}
-        <div class="sidebar-prefs">
-          ${languageSwitcher}
-          ${themeSwitcher}
-        </div>
-        <div class="sidebar-actions">
-          ${userBadge}
-          <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
-          ${authActions}
-        </div>
-      </div>
-    </aside>
-    <div class="page">
-      ${flashHtml ? `<div class="wrap">${flashHtml}</div>` : ""}
-      <main class="wrap stack">${content}</main>
-      ${footerHtml}
+  <header class="wrap topbar">
+    <a class="brand" href="/">
+      <img class="brand-icon" src="${escapeHtml(logoUrl)}" alt="Adhan Reminder logo" />
+      <span class="brand-text"><strong>${escapeHtml(i18n.brandTitle)}</strong><span>${escapeHtml(i18n.brandSubtitle)}</span></span>
+    </a>
+    <div class="actions">
+      ${languageSwitcher}
+      ${themeSwitcher}
+      ${userBadge}
+      <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
+      ${authActions}
     </div>
-  </div>
+  </header>
+  ${flashHtml}
+  <main class="wrap stack">${content}</main>
+  ${footerHtml}
 </body>
 </html>`;
 }
@@ -1212,135 +1191,166 @@ function renderDashboardPage({ userConfig, manageableGuilds, inviteOnlyGuilds, c
   ).join("");
 
   return `
-    <section class="card">
-      <h2 class="section-title">${escapeHtml(i18n.personalDmSettingsTitle)}</h2>
-      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
-      <form method="post" action="/dashboard/profile">
-        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-        <div class="form-grid">
-          ${settingsInputRow({
-            label: i18n.cityLabel,
-            name: "city",
-            value: userConfig.location?.city || "",
-            placeholder: i18n.cityPlaceholder,
-            required: true
-          })}
-          ${settingsInputRow({
-            label: i18n.countryLabel,
-            name: "country",
-            value: userConfig.location?.country || "",
-            placeholder: i18n.countryPlaceholder,
-            required: true
-          })}
-          <label class="field"><span>${escapeHtml(i18n.methodLabel)}</span><select name="method">${methodOptions}</select></label>
-          <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
-        </div>
-        <div class="stack" style="margin-top:10px;">
-          ${checkboxRow({
-            label: i18n.dmPrayerRemindersLabel,
-            name: "dmRemindersEnabled",
-            checked: userConfig.dmRemindersEnabled
-          })}
-          ${checkboxRow({
-            label: i18n.dmPrePrayerRemindersLabel,
-            name: "dmPrePrayerRemindersEnabled",
-            checked: userConfig.dmPrePrayerRemindersEnabled,
-            hint: i18n.dmPrePrayerHint
-          })}
-          ${checkboxRow({
-            label: i18n.dmAzkarRemindersLabel,
-            name: "dmAzkarRemindersEnabled",
-            checked: userConfig.dmAzkarRemindersEnabled,
-            hint: i18n.dmAzkarHint
-          })}
-          ${checkboxRow({
-            label: i18n.dmHadithRemindersLabel,
-            name: "dmHadithRemindersEnabled",
-            checked: userConfig.dmHadithRemindersEnabled,
-            hint: i18n.dmHadithHint
-          })}
-        </div>
-        <div class="form-grid" style="margin-top:10px;">
-          <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${dmLanguageOptions}</select></label>
-          <label class="field"><span>${escapeHtml(i18n.prePrayerLeadLabel)}</span><select name="dmPrePrayerLeadMinutes">${dmPrePrayerLeadOptionTags}</select></label>
-          <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${dmPrePrayerSelectionHtml}</label>
-          ${settingsInputRow({
-            label: i18n.azkarIntervalLabel,
-            name: "dmAzkarIntervalMinutes",
-            value: userConfig.dmAzkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
-            type: "number",
-            min: 30,
-            max: 1440
-          })}
-          ${settingsInputRow({
-            label: i18n.hadithHourLabel,
-            name: "dmHadithHour",
-            value: dmHadithTime.hour,
-            type: "number",
-            min: 0,
-            max: 23
-          })}
-          ${settingsInputRow({
-            label: i18n.hadithMinuteLabel,
-            name: "dmHadithMinute",
-            value: dmHadithTime.minute,
-            type: "number",
-            min: 0,
-            max: 59
-          })}
-          <label class="field"><span>${escapeHtml(i18n.hadithGradeLabel)}</span><select name="dmHadithMinGrade">${hadithGradeOptions}</select></label>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
-        </div>
-      </form>
-      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.instantActionsTitle)}</h3>
-      <div class="form-actions">
-        <form method="post" action="/dashboard/profile/instant-azkar" class="inline-form">
-          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-          <button class="btn btn-soft" type="submit">${escapeHtml(i18n.sendNowAzkarDmButton)}</button>
-        </form>
-        <form method="post" action="/dashboard/profile/instant-hadith" class="inline-form">
-          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithDmButton)}</button>
-        </form>
-      </div>
+    <div class="settings-shell">
+      <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
+        <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
+        <a href="#dm-location">${escapeHtml(i18n.sectionLocation)}</a>
+        <a href="#dm-reminders">${escapeHtml(i18n.sectionReminders)}</a>
+        <a href="#dm-schedule">${escapeHtml(i18n.sectionSchedule)}</a>
+        <a class="muted" href="#dm-instant">${escapeHtml(i18n.sectionInstant)}</a>
+        <a class="muted" href="#dm-data">${escapeHtml(i18n.sectionData)}</a>
+        <a href="#dashboard-servers">${escapeHtml(i18n.sectionServers)}</a>
+      </aside>
+      <div class="settings-main">
+        <div class="stack">
+          <section class="card">
+            <h2 class="section-title">${escapeHtml(i18n.personalDmSettingsTitle)}</h2>
+            <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+            <form method="post" action="/dashboard/profile">
+              <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+              <h3 id="dm-location" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+                i18n.sectionLocation
+              )}</h3>
+              <div class="form-grid">
+                ${settingsInputRow({
+                  label: i18n.cityLabel,
+                  name: "city",
+                  value: userConfig.location?.city || "",
+                  placeholder: i18n.cityPlaceholder,
+                  required: true
+                })}
+                ${settingsInputRow({
+                  label: i18n.countryLabel,
+                  name: "country",
+                  value: userConfig.location?.country || "",
+                  placeholder: i18n.countryPlaceholder,
+                  required: true
+                })}
+                <label class="field"><span>${escapeHtml(i18n.methodLabel)}</span><select name="method">${methodOptions}</select></label>
+                <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
+              </div>
 
-      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.dataRightsTitle)}</h3>
-      <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
-      <div class="form-actions">
-        <a class="btn btn-soft" href="/dashboard/profile/export">${escapeHtml(i18n.exportDataButton)}</a>
-        <form method="post" action="/dashboard/profile/delete-data" class="inline-form">
-          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-          <input
-            name="confirm"
-            placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
-            aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
-            pattern="DELETE"
-            required
-            style="max-width:220px;"
-          />
-          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteDataButton)}</button>
-        </form>
+              <h3 id="dm-reminders" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+                i18n.sectionReminders
+              )}</h3>
+              <div class="stack" style="margin-top:10px;">
+                ${checkboxRow({
+                  label: i18n.dmPrayerRemindersLabel,
+                  name: "dmRemindersEnabled",
+                  checked: userConfig.dmRemindersEnabled
+                })}
+                ${checkboxRow({
+                  label: i18n.dmPrePrayerRemindersLabel,
+                  name: "dmPrePrayerRemindersEnabled",
+                  checked: userConfig.dmPrePrayerRemindersEnabled,
+                  hint: i18n.dmPrePrayerHint
+                })}
+                ${checkboxRow({
+                  label: i18n.dmAzkarRemindersLabel,
+                  name: "dmAzkarRemindersEnabled",
+                  checked: userConfig.dmAzkarRemindersEnabled,
+                  hint: i18n.dmAzkarHint
+                })}
+                ${checkboxRow({
+                  label: i18n.dmHadithRemindersLabel,
+                  name: "dmHadithRemindersEnabled",
+                  checked: userConfig.dmHadithRemindersEnabled,
+                  hint: i18n.dmHadithHint
+                })}
+              </div>
+
+              <h3 id="dm-schedule" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+                i18n.sectionSchedule
+              )}</h3>
+              <div class="form-grid" style="margin-top:10px;">
+                <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${dmLanguageOptions}</select></label>
+                <label class="field"><span>${escapeHtml(i18n.prePrayerLeadLabel)}</span><select name="dmPrePrayerLeadMinutes">${dmPrePrayerLeadOptionTags}</select></label>
+                <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${dmPrePrayerSelectionHtml}</label>
+                ${settingsInputRow({
+                  label: i18n.azkarIntervalLabel,
+                  name: "dmAzkarIntervalMinutes",
+                  value: userConfig.dmAzkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
+                  type: "number",
+                  min: 30,
+                  max: 1440
+                })}
+                ${settingsInputRow({
+                  label: i18n.hadithHourLabel,
+                  name: "dmHadithHour",
+                  value: dmHadithTime.hour,
+                  type: "number",
+                  min: 0,
+                  max: 23
+                })}
+                ${settingsInputRow({
+                  label: i18n.hadithMinuteLabel,
+                  name: "dmHadithMinute",
+                  value: dmHadithTime.minute,
+                  type: "number",
+                  min: 0,
+                  max: 59
+                })}
+                <label class="field"><span>${escapeHtml(i18n.hadithGradeLabel)}</span><select name="dmHadithMinGrade">${hadithGradeOptions}</select></label>
+              </div>
+              <div class="sticky-actions">
+                <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
+              </div>
+            </form>
+
+            <h3 id="dm-instant" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+              i18n.instantActionsTitle
+            )}</h3>
+            <div class="form-actions">
+              <form method="post" action="/dashboard/profile/instant-azkar" class="inline-form">
+                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+                <button class="btn btn-soft" type="submit">${escapeHtml(i18n.sendNowAzkarDmButton)}</button>
+              </form>
+              <form method="post" action="/dashboard/profile/instant-hadith" class="inline-form">
+                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+                <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithDmButton)}</button>
+              </form>
+            </div>
+
+            <h3 id="dm-data" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+              i18n.dataRightsTitle
+            )}</h3>
+            <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
+            <div class="form-actions">
+              <a class="btn btn-soft" href="/dashboard/profile/export">${escapeHtml(i18n.exportDataButton)}</a>
+              <form method="post" action="/dashboard/profile/delete-data" class="inline-form">
+                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+                <input
+                  name="confirm"
+                  placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
+                  aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
+                  pattern="DELETE"
+                  required
+                  style="max-width:220px;"
+                />
+                <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteDataButton)}</button>
+              </form>
+            </div>
+          </section>
+          <div id="dashboard-servers" class="grid-2 settings-anchor">
+            ${renderGuildListSection({
+              title: i18n.serversConfigurableTitle,
+              items: manageableGuilds,
+              emptyMessage: i18n.serversConfigurableEmpty,
+              idLabel: i18n.idLabel,
+              makeAction: (guild) =>
+                `<a class="btn btn-soft" href="/dashboard/guild/${escapeHtml(guild.id)}">${escapeHtml(i18n.configureButton)}</a>`
+            })}
+            ${renderGuildListSection({
+              title: i18n.serversInviteTitle,
+              items: inviteOnlyGuilds,
+              emptyMessage: i18n.serversInviteEmpty,
+              idLabel: i18n.idLabel,
+              makeAction: (guild) =>
+                `<a class="btn btn-ghost" href="${escapeHtml(guild.inviteUrl)}">${escapeHtml(i18n.inviteHereButton)}</a>`
+            })}
+          </div>
+        </div>
       </div>
-    </section>
-    <div class="grid-2">
-      ${renderGuildListSection({
-        title: i18n.serversConfigurableTitle,
-        items: manageableGuilds,
-        emptyMessage: i18n.serversConfigurableEmpty,
-        idLabel: i18n.idLabel,
-        makeAction: (guild) =>
-          `<a class="btn btn-soft" href="/dashboard/guild/${escapeHtml(guild.id)}">${escapeHtml(i18n.configureButton)}</a>`
-      })}
-      ${renderGuildListSection({
-        title: i18n.serversInviteTitle,
-        items: inviteOnlyGuilds,
-        emptyMessage: i18n.serversInviteEmpty,
-        idLabel: i18n.idLabel,
-        makeAction: (guild) =>
-          `<a class="btn btn-ghost" href="${escapeHtml(guild.inviteUrl)}">${escapeHtml(i18n.inviteHereButton)}</a>`
-      })}
     </div>
   `;
 }
@@ -1418,9 +1428,23 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
     <section class="card">
       <h2 class="section-title">${escapeHtml(i18n.serverSettingsTitle)}: ${escapeHtml(guild.name)}</h2>
       <p class="subtle">${escapeHtml(i18n.serverSettingsDescription)}</p>
-      <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}">
-        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-        <h3 class="section-title" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(i18n.locationSectionTitle)}</h3>
+      <div class="settings-shell">
+        <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
+          <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
+          <a href="#guild-location">${escapeHtml(i18n.sectionLocation)}</a>
+          <a href="#guild-channels">${escapeHtml(i18n.sectionChannels)}</a>
+          <a href="#guild-preprayer">${escapeHtml(i18n.sectionPrePrayer)}</a>
+          <a href="#guild-azkar">${escapeHtml(i18n.sectionAzkar)}</a>
+          <a href="#guild-hadith">${escapeHtml(i18n.sectionHadith)}</a>
+          <a class="muted" href="#guild-instant">${escapeHtml(i18n.sectionInstant)}</a>
+          <a class="muted" href="#guild-data">${escapeHtml(i18n.sectionData)}</a>
+        </aside>
+        <div class="settings-main">
+          <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}">
+            <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+            <h3 id="guild-location" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
+              i18n.locationSectionTitle
+            )}</h3>
         <div class="form-grid">
           ${settingsInputRow({
             label: i18n.cityLabel,
@@ -1440,7 +1464,9 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
         </div>
 
-        <h3 class="section-title" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(i18n.adhanChannelsSectionTitle)}</h3>
+        <h3 id="guild-channels" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
+          i18n.adhanChannelsSectionTitle
+        )}</h3>
         <div class="form-grid">
           <label class="field"><span>${escapeHtml(i18n.reminderChannelLabel)}</span><select name="reminderChannelId">${textChannelOptions}</select></label>
           <label class="field"><span>${escapeHtml(i18n.voiceChannelLabel)}</span><select name="adhanVoiceChannelId">${voiceChannelOptions}</select></label>
@@ -1454,7 +1480,9 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           })}
         </div>
 
-        <h3 class="section-title" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(i18n.prePrayerSectionTitle)}</h3>
+        <h3 id="guild-preprayer" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
+          i18n.prePrayerSectionTitle
+        )}</h3>
         <div class="stack">
           ${checkboxRow({
             label: i18n.enablePrePrayerLabel,
@@ -1467,7 +1495,9 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${prePrayerSelectionHtml}</label>
         </div>
 
-        <h3 class="section-title" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(i18n.azkarSectionTitle)}</h3>
+        <h3 id="guild-azkar" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
+          i18n.azkarSectionTitle
+        )}</h3>
         <div class="stack">
           ${checkboxRow({
             label: i18n.enableAzkarLabel,
@@ -1487,7 +1517,9 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           })}
         </div>
 
-        <h3 class="section-title" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(i18n.hadithSectionTitle)}</h3>
+        <h3 id="guild-hadith" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
+          i18n.hadithSectionTitle
+        )}</h3>
         <div class="stack">
           ${checkboxRow({
             label: i18n.enableHadithLabel,
@@ -1515,12 +1547,15 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <label class="field"><span>${escapeHtml(i18n.minimumGradeLabel)}</span><select name="hadithMinGrade">${hadithGradeOptions}</select></label>
         </div>
 
-        <div class="form-actions">
+        <div class="sticky-actions">
           <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveServerSettingsButton)}</button>
           <a class="btn btn-soft" href="/dashboard">${escapeHtml(i18n.backToDashboardButton)}</a>
         </div>
       </form>
-      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.instantActionsTitle)}</h3>
+
+      <h3 id="guild-instant" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+        i18n.instantActionsTitle
+      )}</h3>
       <div class="form-actions">
         <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/instant-azkar" class="inline-form">
           <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
@@ -1531,7 +1566,10 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithGuildButton)}</button>
         </form>
       </div>
-      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.dataRightsTitle)}</h3>
+
+      <h3 id="guild-data" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
+        i18n.dataRightsTitle
+      )}</h3>
       <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
       <div class="form-actions">
         <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/delete-data" class="inline-form">
@@ -1546,6 +1584,8 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           />
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteServerDataButton)}</button>
         </form>
+      </div>
+        </div>
       </div>
     </section>
   `;
