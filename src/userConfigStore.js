@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { getEncryptionKeyFromEnv, parseJsonFileContents, stringifyJsonForFile } = require("./dataCipher");
 
 function normalizeLanguageValue(value) {
   return String(value || "english").trim().toLowerCase() === "arabic" ? "arabic" : "english";
@@ -77,6 +78,7 @@ class UserConfigStore {
     this.filePath = filePath;
     this.data = {};
     this.loaded = false;
+    this.encryptionKey = getEncryptionKeyFromEnv();
   }
 
   ensureDirectory() {
@@ -93,17 +95,17 @@ class UserConfigStore {
 
     this.ensureDirectory();
     if (!fs.existsSync(this.filePath)) {
-      fs.writeFileSync(this.filePath, "{}\n", "utf8");
+      fs.writeFileSync(this.filePath, stringifyJsonForFile({}, { key: this.encryptionKey }), "utf8");
     }
 
     const raw = fs.readFileSync(this.filePath, "utf8");
-    this.data = raw.trim() ? JSON.parse(raw) : {};
+    this.data = parseJsonFileContents(raw, { key: this.encryptionKey });
     this.loaded = true;
   }
 
   save() {
     this.ensureDirectory();
-    fs.writeFileSync(this.filePath, `${JSON.stringify(this.data, null, 2)}\n`, "utf8");
+    fs.writeFileSync(this.filePath, stringifyJsonForFile(this.data, { key: this.encryptionKey }), "utf8");
   }
 
   getUserConfig(userId) {
@@ -130,6 +132,16 @@ class UserConfigStore {
     this.data[userId] = updated;
     this.save();
     return updated;
+  }
+
+  deleteUserConfig(userId) {
+    this.load();
+    if (!Object.hasOwn(this.data, userId)) {
+      return false;
+    }
+    delete this.data[userId];
+    this.save();
+    return true;
   }
 
   getAllConfigs() {

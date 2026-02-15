@@ -92,6 +92,7 @@ const GUILD_ONLY_COMMANDS = new Set([
   "set-mention-role",
   "set-azkar-reminders",
   "set-hadith-reminders",
+  "delete-guild-data",
   "config",
   "prayer-times",
   "next-prayer",
@@ -110,7 +111,9 @@ const USER_COMMANDS = new Set([
   "dm-test-azkar",
   "dm-test-hadith",
   "dm-prayer-times",
-  "dm-next-prayer"
+  "dm-next-prayer",
+  "export-my-data",
+  "delete-my-data"
 ]);
 
 const PRAYER_EMOJIS = {
@@ -1533,6 +1536,28 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (commandName === "delete-guild-data") {
+      if (!(await requireManageGuild(interaction))) {
+        return;
+      }
+
+      const deleted = guildStore.deleteGuildConfig(guildId);
+      await interaction.reply({
+        content: styledBlock({
+          icon: ICONS.warning,
+          title: "Server Data Deleted",
+          lines: [
+            deleted
+              ? `${ICONS.check} Deleted stored configuration for this server.`
+              : `${ICONS.mailbox} No stored configuration was found for this server.`,
+            `${ICONS.note} You can reconfigure anytime using /set-location and /set-channels.`
+          ]
+        }),
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
     if (commandName === "prayer-times") {
       if (!hasValidLocation(guildConfig)) {
         await interaction.reply({
@@ -1936,6 +1961,46 @@ client.on("interactionCreate", async (interaction) => {
 
     if (commandName === "dm-config") {
       await interaction.reply(privateResponseOptions(interaction, formatUserConfig(userConfig)));
+      return;
+    }
+
+    if (commandName === "export-my-data") {
+      const exportConfig = userStore.getUserConfig(userId);
+      const json = `${JSON.stringify(exportConfig, null, 2)}\n`;
+      const file = {
+        attachment: Buffer.from(json, "utf8"),
+        name: `adhan-reminder-user-${userId}.json`
+      };
+      const content = styledBlock({
+        icon: ICONS.note,
+        title: "Data Export",
+        lines: [`${ICONS.book} Attached is your stored DM configuration.`]
+      });
+      await interaction.reply(
+        interaction.inGuild()
+          ? { content, files: [file], flags: MessageFlags.Ephemeral }
+          : { content, files: [file] }
+      );
+      return;
+    }
+
+    if (commandName === "delete-my-data") {
+      const deleted = userStore.deleteUserConfig(userId);
+      await interaction.reply(
+        privateResponseOptions(
+          interaction,
+          styledBlock({
+            icon: ICONS.warning,
+            title: "Personal Data Deleted",
+            lines: [
+              deleted
+                ? `${ICONS.check} Deleted your stored DM configuration.`
+                : `${ICONS.mailbox} No stored DM configuration was found for your account.`,
+              `${ICONS.note} You can reconfigure anytime with /my-location and /dm-reminders.`
+            ]
+          })
+        )
+      );
       return;
     }
 

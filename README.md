@@ -33,6 +33,8 @@ npm install
    - `CLIENT_ID`
    - `CLIENT_SECRET` (for web dashboard login)
    - `SESSION_SECRET` (for dashboard session cookies)
+   - Optional `PRIVACY_CONTACT` (shown on `/privacy`)
+   - Optional `DATA_ENCRYPTION_KEY` (encrypts `data/*.json` at rest)
    - Optional `WEB_BASE_URL` (default `http://localhost:3000`)
    - Optional `WEB_PORT` (default `3000`)
    - Optional `DASHBOARD_DISCORD_SYNC_SECONDS` (default `90`, lowers OAuth API request frequency)
@@ -118,6 +120,9 @@ npm run invite:url
 - `/dm-test [prayer]`
 - `/dm-test-azkar`
 - `/dm-test-hadith`
+- `/export-my-data`
+- `/delete-my-data`
+- `/delete-guild-data` (Manage Server)
 
 ## Typical First-Time Setup In Discord
 
@@ -142,3 +147,4 @@ npm run invite:url
 - Scheduler checks every 20 seconds by default (`CHECK_INTERVAL_SECONDS` in `.env`).
 - Server configs persist in `data/guildConfigs.json`.
 - User DM reminder configs persist in `data/userConfigs.json`.
+- You can export/delete your stored settings via the dashboard (Data Controls) or `/export-my-data` and `/delete-my-data`.

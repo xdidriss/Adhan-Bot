@@ -330,6 +330,20 @@ function buildCommands() {
       .setName("dm-next-prayer")
       .setDescription("Show your next prayer time using your personal location.")
       .setDMPermission(true)
+    ,
+    new SlashCommandBuilder()
+      .setName("export-my-data")
+      .setDescription("Export your stored Adhan Reminder data (DM settings) as a JSON file.")
+      .setDMPermission(true),
+    new SlashCommandBuilder()
+      .setName("delete-my-data")
+      .setDescription("Delete your stored Adhan Reminder data (DM settings).")
+      .setDMPermission(true),
+    new SlashCommandBuilder()
+      .setName("delete-guild-data")
+      .setDescription("Delete this server's stored Adhan Reminder data (requires Manage Server).")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+      .setDMPermission(false)
   ].map((command) => command.toJSON());
 }
 

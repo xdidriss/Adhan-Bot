@@ -117,6 +117,17 @@ const DASHBOARD_I18N = {
     instantHadithSentGuildFlash: "Instant hadith reminder sent to the configured channel.",
     instantAzkarSendFailedFlash: "Could not send azkar reminder now",
     instantHadithSendFailedFlash: "Could not send hadith reminder now",
+    dataRightsTitle: "Data Controls",
+    dataRightsDesc: "Export or delete your stored settings at any time.",
+    exportDataButton: "Export My Data",
+    deleteDataButton: "Delete My Data",
+    deleteConfirmLabel: "Type DELETE to confirm",
+    deleteConfirmPlaceholder: "DELETE",
+    deleteProfileSuccessFlash: "Your stored data was deleted.",
+    deleteProfileFailedFlash: "Could not delete your data",
+    deleteGuildSuccessFlash: "Server data was deleted.",
+    deleteGuildFailedFlash: "Could not delete server data",
+    deleteServerDataButton: "Delete Server Data",
     serversConfigurableTitle: "Servers You Can Configure",
     serversConfigurableEmpty: "No manageable server found where the bot is already present.",
     configureButton: "Configure",
@@ -188,6 +199,17 @@ const DASHBOARD_I18N = {
     hadithMinuteLabel: "دقيقة الحديث",
     hadithGradeLabel: "درجة الحديث",
     saveDmSettingsButton: "حفظ إعدادات الخاص",
+    dataRightsTitle: "التحكم بالبيانات",
+    dataRightsDesc: "يمكنك تصدير أو حذف إعداداتك المخزنة في أي وقت.",
+    exportDataButton: "تصدير بياناتي",
+    deleteDataButton: "حذف بياناتي",
+    deleteConfirmLabel: "اكتب DELETE للتأكيد",
+    deleteConfirmPlaceholder: "DELETE",
+    deleteProfileSuccessFlash: "تم حذف بياناتك المخزنة.",
+    deleteProfileFailedFlash: "تعذر حذف بياناتك",
+    deleteGuildSuccessFlash: "تم حذف بيانات السيرفر.",
+    deleteGuildFailedFlash: "تعذر حذف بيانات السيرفر",
+    deleteServerDataButton: "حذف بيانات السيرفر",
     serversConfigurableTitle: "السيرفرات التي يمكنك ضبطها",
     serversConfigurableEmpty: "لا يوجد سيرفر قابل للإدارة ويوجد فيه البوت حالياً.",
     configureButton: "إعداد",
@@ -768,6 +790,7 @@ function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLa
 
 function buildPrivacyContent(dashboardLanguage) {
   const normalized = normalizeDashboardLanguage(dashboardLanguage);
+  const privacyContact = String(process.env.PRIVACY_CONTACT || "").trim();
   if (normalized === "arabic") {
     return `
       <section class="card">
@@ -781,8 +804,11 @@ function buildPrivacyContent(dashboardLanguage) {
           <p>لحساب مواقيت الصلاة، إرسال التذكيرات، تشغيل الأذان الصوتي، وإدارة تسجيل الدخول للوحة.</p>
           <h3 class="section-title" style="font-size:1.1rem;">مشاركة البيانات</h3>
           <p>لا نبيع بياناتك. قد تُرسل البيانات اللازمة فقط إلى Discord ومزود أوقات الصلاة لتقديم الخدمة.</p>
+          <h3 class="section-title" style="font-size:1.1rem;">التحكم والحذف</h3>
+          <p>يمكنك حذف بياناتك في أي وقت باستخدام أمر البوت <code>/delete-my-data</code> أو من لوحة التحكم (قسم التحكم بالبيانات).</p>
+          <p>لمسح بيانات السيرفر (للمسؤولين): استخدم <code>/delete-guild-data</code>.</p>
           <h3 class="section-title" style="font-size:1.1rem;">التواصل</h3>
-          <p>للاستفسارات حول الخصوصية، تواصل مع مدير البوت.</p>
+          <p>${privacyContact ? `للاستفسارات حول الخصوصية: ${escapeHtml(privacyContact)}.` : "للاستفسارات حول الخصوصية، تواصل مع مدير البوت."}</p>
         </div>
       </section>
     `;
@@ -800,8 +826,12 @@ function buildPrivacyContent(dashboardLanguage) {
         <p>To calculate prayer times, send reminders, play adhan in voice channels, and power dashboard login.</p>
         <h3 class="section-title" style="font-size:1.1rem;">Data Sharing</h3>
         <p>We do not sell your data. Required data may be sent only to Discord and prayer-time providers to deliver service features.</p>
+        <h3 class="section-title" style="font-size:1.1rem;">Your Choices (Export / Delete)</h3>
+        <p>You can export or delete your stored settings at any time from the dashboard (Data Controls section) or via bot commands.</p>
+        <p>Personal data: <code>/export-my-data</code> and <code>/delete-my-data</code>.</p>
+        <p>Server data (admins): <code>/delete-guild-data</code>.</p>
         <h3 class="section-title" style="font-size:1.1rem;">Contact</h3>
-        <p>For privacy questions, contact the bot administrator.</p>
+        <p>${privacyContact ? `For privacy questions: ${escapeHtml(privacyContact)}.` : "For privacy questions, contact the bot administrator."}</p>
       </div>
     </section>
   `;
@@ -1035,6 +1065,24 @@ function renderDashboardPage({ userConfig, manageableGuilds, inviteOnlyGuilds, c
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithDmButton)}</button>
         </form>
       </div>
+
+      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.dataRightsTitle)}</h3>
+      <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
+      <div class="form-actions">
+        <a class="btn btn-soft" href="/dashboard/profile/export">${escapeHtml(i18n.exportDataButton)}</a>
+        <form method="post" action="/dashboard/profile/delete-data" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <input
+            name="confirm"
+            placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
+            aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
+            pattern="DELETE"
+            required
+            style="max-width:220px;"
+          />
+          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteDataButton)}</button>
+        </form>
+      </div>
     </section>
     <div class="grid-2">
       ${renderGuildListSection({
@@ -1241,6 +1289,22 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
         <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/instant-hadith" class="inline-form">
           <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithGuildButton)}</button>
+        </form>
+      </div>
+      <h3 class="section-title" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(i18n.dataRightsTitle)}</h3>
+      <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
+      <div class="form-actions">
+        <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/delete-data" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <input
+            name="confirm"
+            placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
+            aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
+            pattern="DELETE"
+            required
+            style="max-width:220px;"
+          />
+          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteServerDataButton)}</button>
         </form>
       </div>
     </section>
@@ -1657,6 +1721,37 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     res.redirect("/dashboard");
   });
 
+  app.get("/dashboard/profile/export", requireAuth, (req, res) => {
+    const userId = req.session.discordUser.id;
+    const exportConfig = userStore.getUserConfig(userId);
+    const payload = `${JSON.stringify(exportConfig, null, 2)}\n`;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=\"adhan-reminder-user-${userId}.json\"`);
+    res.status(200).send(payload);
+  });
+
+  app.post("/dashboard/profile/delete-data", requireAuth, (req, res) => {
+    const dashboardLanguage = getDashboardLanguage(req);
+    const i18n = getDashboardI18n(dashboardLanguage);
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect("/dashboard");
+      return;
+    }
+
+    const confirm = String(req.body.confirm || "").trim().toUpperCase();
+    if (confirm !== "DELETE") {
+      setFlash(req, "error", "Confirmation was not provided.");
+      res.redirect("/dashboard");
+      return;
+    }
+
+    const userId = req.session.discordUser.id;
+    userStore.deleteUserConfig(userId);
+    setFlash(req, "success", i18n.deleteProfileSuccessFlash);
+    res.redirect("/dashboard");
+  });
+
   app.get("/dashboard/guild/:guildId", requireAuth, async (req, res) => {
     try {
       const dashboardLanguage = getDashboardLanguage(req);
@@ -1902,6 +1997,47 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       setFlash(req, "error", `${i18n.instantHadithSendFailedFlash}: ${error.message}`);
     }
     res.redirect(`/dashboard/guild/${guildId}`);
+  });
+
+  app.post("/dashboard/guild/:guildId/delete-data", requireAuth, async (req, res) => {
+    const dashboardLanguage = getDashboardLanguage(req);
+    const i18n = getDashboardI18n(dashboardLanguage);
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect(`/dashboard/guild/${req.params.guildId}`);
+      return;
+    }
+
+    const confirm = String(req.body.confirm || "").trim().toUpperCase();
+    if (confirm !== "DELETE") {
+      setFlash(req, "error", "Confirmation was not provided.");
+      res.redirect(`/dashboard/guild/${req.params.guildId}`);
+      return;
+    }
+
+    try {
+      await refreshDiscordSession(req);
+      const guildId = req.params.guildId;
+      const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
+      const { manageable } = splitUserGuildsForDashboard(
+        req.session.discordGuilds || [],
+        botGuildIds,
+        clientId,
+        botPermissions
+      );
+      if (!manageable.some((guild) => guild.id === guildId)) {
+        setFlash(req, "error", "You do not have permission to manage that server.");
+        res.redirect("/dashboard");
+        return;
+      }
+
+      guildStore.deleteGuildConfig(guildId);
+      setFlash(req, "success", i18n.deleteGuildSuccessFlash);
+      res.redirect("/dashboard");
+    } catch (error) {
+      setFlash(req, "error", `${i18n.deleteGuildFailedFlash}: ${error.message}`);
+      res.redirect(`/dashboard/guild/${req.params.guildId}`);
+    }
   });
 
   app.get("/health", (_req, res) => {
