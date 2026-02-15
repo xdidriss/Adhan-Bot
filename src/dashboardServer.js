@@ -66,6 +66,9 @@ const DASHBOARD_I18N = {
     termsOfService: "Terms of Service",
     footerRights: "All rights reserved.",
     languageAriaLabel: "Dashboard language",
+    themeAriaLabel: "Theme",
+    themeLightLabel: "Light",
+    themeDarkLabel: "Dark",
     homeTitle: "Prayer reminders, azkar, hadith, and voice adhan in one place",
     homeDescription:
       "Configure everything from web: prayer location, channels, voice playback, role mentions, DM reminders, random azkar intervals, and daily hadith timing with grade filtering.",
@@ -169,6 +172,9 @@ const DASHBOARD_I18N = {
     termsOfService: "شروط الخدمة",
     footerRights: "جميع الحقوق محفوظة.",
     languageAriaLabel: "لغة لوحة التحكم",
+    themeAriaLabel: "المظهر",
+    themeLightLabel: "فاتح",
+    themeDarkLabel: "داكن",
     homeTitle: "تنبيهات الصلاة والأذكار والأحاديث والأذان الصوتي في مكان واحد",
     homeDescription:
       "اضبط كل شيء من الويب: موقع الصلاة، القنوات، تشغيل الصوت، رتبة المنشن، تذكيرات الخاص، فواصل الأذكار العشوائية، ووقت الحديث اليومي مع فلتر الدرجة.",
@@ -275,6 +281,10 @@ function normalizeDashboardLanguage(value) {
   return String(value || "english").trim().toLowerCase() === "arabic" ? "arabic" : "english";
 }
 
+function normalizeDashboardTheme(value) {
+  return String(value || "dark").trim().toLowerCase() === "light" ? "light" : "dark";
+}
+
 function getDashboardI18n(language) {
   const normalized = normalizeDashboardLanguage(language);
   return {
@@ -285,6 +295,10 @@ function getDashboardI18n(language) {
 
 function getDashboardLanguage(req) {
   return normalizeDashboardLanguage(req?.session?.dashboardLanguage);
+}
+
+function getDashboardTheme(req) {
+  return normalizeDashboardTheme(req?.session?.dashboardTheme);
 }
 
 function safeReturnPath(value) {
@@ -651,10 +665,20 @@ function checkboxRow({ label, name, checked, hint }) {
   `;
 }
 
-function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLanguage, returnPath = "/" }) {
+function renderLayout({
+  title,
+  content,
+  user,
+  inviteUrlValue,
+  flash,
+  dashboardLanguage,
+  dashboardTheme = "dark",
+  returnPath = "/"
+}) {
   const userAvatar = avatarUrl(user);
   const logoUrl = "/assets/bot-icon-masjid.png";
   const normalizedLanguage = normalizeDashboardLanguage(dashboardLanguage);
+  const normalizedTheme = normalizeDashboardTheme(dashboardTheme);
   const i18n = getDashboardI18n(normalizedLanguage);
   const languageOptions = DASHBOARD_LANGUAGE_CHOICES.map((choice) =>
     optionTag({
@@ -674,6 +698,24 @@ function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLa
       >
         ${languageOptions}
       </select>
+    </form>
+  `;
+  const themeCheckedAttr = normalizedTheme === "light" ? " checked" : "";
+  const themeSwitcher = `
+    <form method="post" action="/dashboard/theme" class="inline-form theme-form">
+      <input type="hidden" name="return_to" value="${escapeHtml(returnPath)}" />
+      <input type="hidden" name="theme" value="${escapeHtml(normalizedTheme)}" />
+      <label class="switch" aria-label="${escapeHtml(i18n.themeAriaLabel)}">
+        <input
+          type="checkbox"
+          ${themeCheckedAttr}
+          onchange="this.form.theme.value=this.checked?'light':'dark'; this.form.submit();"
+        />
+        <span class="slider" aria-hidden="true"></span>
+        <span class="switch-text">${escapeHtml(
+          normalizedTheme === "light" ? i18n.themeLightLabel : i18n.themeDarkLabel
+        )}</span>
+      </label>
     </form>
   `;
   const authActions = user
@@ -700,7 +742,9 @@ function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLa
   `;
 
   return `<!doctype html>
-<html lang="${escapeHtml(i18n.htmlLang)}" dir="${escapeHtml(i18n.htmlDir)}">
+<html lang="${escapeHtml(i18n.htmlLang)}" dir="${escapeHtml(i18n.htmlDir)}" data-theme="${escapeHtml(
+    normalizedTheme
+  )}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -709,62 +753,127 @@ function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLa
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root { --night:#041a2e; --dawn:#0f3a57; --gold:#e6cf8b; --mint:#5ec4a8; --ink:#06263c; --card:rgba(8,40,62,.78); --muted:#b6c7d4; --danger:#ff9f89; }
+    :root{
+      --font-sans:"Cairo",sans-serif;
+      --font-serif:"Amiri",serif;
+      --danger:#ff9f89;
+    }
+    html[data-theme="dark"]{
+      color-scheme:dark;
+      --gold:#e6cf8b;
+      --gold-2:#f4df9e;
+      --mint:#5ec4a8;
+      --ink:#06263c;
+      --text:#f4f8fb;
+      --muted:#b6c7d4;
+      --muted-2:#d9e6f3;
+      --card:rgba(8,40,62,.78);
+      --card-2:rgba(5,31,49,.55);
+      --panel:rgba(5,31,49,.35);
+      --field:rgba(2,21,35,.5);
+      --field-2:rgba(2,21,35,.35);
+      --border:rgba(230,207,139,.22);
+      --border-2:rgba(230,207,139,.33);
+      --shadow:0 18px 44px rgba(0,0,0,.28);
+      --bg-a:radial-gradient(1200px 700px at 80% -10%, rgba(230,207,139,.22), transparent 60%);
+      --bg-b:radial-gradient(900px 500px at 10% -10%, rgba(94,196,168,.16), transparent 60%);
+      --bg-c:linear-gradient(180deg,#0f3a57,#041a2e);
+      --brand-ring:rgba(8,40,62,.38);
+      --brand-bg:#0c2f4a;
+      --btn-soft-bg:rgba(94,196,168,.2);
+      --btn-soft-border:rgba(94,196,168,.45);
+      --btn-soft-text:#dbfff4;
+    }
+    html[data-theme="light"]{
+      color-scheme:light;
+      --gold:#b78b2f;
+      --gold-2:#d1a84b;
+      --mint:#1c8b73;
+      --ink:#1b232c;
+      --text:#1b232c;
+      --muted:#50606e;
+      --muted-2:#2c3945;
+      --card:rgba(255,255,255,.86);
+      --card-2:rgba(255,255,255,.72);
+      --panel:rgba(255,255,255,.62);
+      --field:#ffffff;
+      --field-2:rgba(255,255,255,.72);
+      --border:rgba(183,139,47,.22);
+      --border-2:rgba(183,139,47,.28);
+      --shadow:0 18px 44px rgba(15,26,36,.12);
+      --bg-a:radial-gradient(900px 520px at 78% -10%, rgba(183,139,47,.18), transparent 62%);
+      --bg-b:radial-gradient(840px 520px at 8% -10%, rgba(28,139,115,.10), transparent 62%);
+      --bg-c:repeating-linear-gradient(135deg, rgba(183,139,47,.06) 0, rgba(183,139,47,.06) 1px, transparent 1px, transparent 14px);
+      --bg-d:linear-gradient(180deg,#fffdf6,#f3ecd9);
+      --brand-ring:rgba(183,139,47,.18);
+      --brand-bg:rgba(255,255,255,.75);
+      --btn-soft-bg:rgba(28,139,115,.10);
+      --btn-soft-border:rgba(28,139,115,.28);
+      --btn-soft-text:#1b232c;
+    }
     * { box-sizing:border-box; }
-    body { margin:0; color:#f4f8fb; font-family:"Cairo",sans-serif; background:
-      radial-gradient(1200px 700px at 80% -10%, rgba(230,207,139,.22), transparent 60%),
-      radial-gradient(900px 500px at 10% -10%, rgba(94,196,168,.16), transparent 60%),
-      linear-gradient(180deg,var(--dawn),var(--night)); min-height:100vh; }
+    body { margin:0; color:var(--text); font-family:var(--font-sans); background:var(--bg-a),var(--bg-b),var(--bg-c),var(--bg-d, none); min-height:100vh; }
     .wrap { width:min(1100px,94vw); margin:0 auto; }
     .topbar { display:flex; justify-content:space-between; gap:12px; padding:20px 0; align-items:center; }
     .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
-    .brand-icon { width:44px; height:44px; border-radius:999px; border:1px solid rgba(230,207,139,.62); box-shadow:0 0 0 3px rgba(8,40,62,.38); background:#0c2f4a; object-fit:cover; }
-    .brand-text strong { font:700 1.3rem "Amiri",serif; color:#f4df9e; letter-spacing:.5px; display:block; }
+    .brand-icon { width:44px; height:44px; border-radius:999px; border:1px solid rgba(230,207,139,.62); box-shadow:0 0 0 3px var(--brand-ring); background:var(--brand-bg); object-fit:cover; }
+    .brand-text strong { font:700 1.3rem var(--font-serif); color:var(--gold-2); letter-spacing:.5px; display:block; }
     .brand-text span { color:var(--muted); font-size:.88rem; }
     .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:flex-end; }
     .lang-form { display:inline-flex; }
-    .lang-select { border-radius:999px; border:1px solid rgba(230,207,139,.45); background:rgba(2,21,35,.5); color:#f5fbff; padding:9px 14px; font:700 .86rem "Cairo",sans-serif; }
+    .lang-select { border-radius:999px; border:1px solid rgba(230,207,139,.45); background:var(--field); color:var(--text); padding:9px 14px; font:700 .86rem var(--font-sans); }
     [dir="rtl"] .actions { justify-content:flex-start; }
     .btn { border:0; cursor:pointer; text-decoration:none; border-radius:999px; padding:10px 18px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
-    .btn-primary { background:linear-gradient(90deg,var(--gold),#f4df9e); color:var(--ink); }
-    .btn-soft { background:rgba(94,196,168,.2); color:#dbfff4; border:1px solid rgba(94,196,168,.45); }
-    .btn-ghost { background:transparent; color:#f2f7fb; border:1px solid rgba(230,207,139,.5); }
+    .btn-primary { background:linear-gradient(90deg,var(--gold),var(--gold-2)); color:var(--ink); }
+    .btn-soft { background:var(--btn-soft-bg); color:var(--btn-soft-text); border:1px solid var(--btn-soft-border); }
+    .btn-ghost { background:transparent; color:var(--text); border:1px solid rgba(230,207,139,.5); }
     .inline-form { display:inline; }
-    .user-badge { display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(230,207,139,.3); border-radius:999px; padding:6px 12px 6px 6px; background:rgba(8,40,62,.48); }
+    .user-badge { display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(230,207,139,.3); border-radius:999px; padding:6px 12px 6px 6px; background:var(--panel); }
     .user-badge img { width:26px; height:26px; border-radius:999px; border:1px solid rgba(230,207,139,.6); }
-    .card { background:var(--card); border:1px solid rgba(230,207,139,.22); border-radius:20px; padding:24px; box-shadow:0 18px 44px rgba(0,0,0,.28); }
-    .hero h1, .section-title { font-family:"Amiri",serif; color:#f4df9e; margin:0 0 10px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; box-shadow:var(--shadow); backdrop-filter:saturate(120%) blur(10px); }
+    .hero h1, .section-title { font-family:var(--font-serif); color:var(--gold-2); margin:0 0 10px; }
     .hero h1 { font-size:2.2rem; }
-    .hero p, .subtle { color:#d9e6f3; line-height:1.5; margin:0; }
+    .hero p, .subtle { color:var(--muted-2); line-height:1.5; margin:0; }
     .hero .cta-row { margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }
     .features { margin-top:18px; display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
-    .feature { background:rgba(5,31,49,.55); border:1px solid rgba(230,207,139,.16); border-radius:16px; padding:14px; }
+    .feature { background:var(--card-2); border:1px solid rgba(230,207,139,.16); border-radius:16px; padding:14px; }
     .feature h3 { margin:0 0 6px; font-size:1rem; }
-    .feature p { margin:0; color:#bed0df; font-size:.93rem; }
+    .feature p { margin:0; color:var(--muted); font-size:.93rem; }
     .stack { display:grid; gap:12px; }
     .grid-2 { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
     .guild-list { display:grid; gap:10px; }
-    .guild-item { display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(230,207,139,.2); border-radius:14px; padding:12px; background:rgba(5,31,49,.35); }
+    .guild-item { display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(230,207,139,.2); border-radius:14px; padding:12px; background:var(--panel); }
     .guild-item h4 { margin:0; }
-    .guild-item p { margin:2px 0 0; color:#adc3d4; font-size:.85rem; }
+    .guild-item p { margin:2px 0 0; color:var(--muted); font-size:.85rem; }
     .form-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); }
     .field { display:flex; flex-direction:column; gap:6px; }
     .field span { font-size:.85rem; font-weight:700; }
-    .field input,.field select { border-radius:12px; border:1px solid rgba(230,207,139,.33); background:rgba(2,21,35,.5); color:#f5fbff; padding:10px 12px; font:600 .92rem "Cairo",sans-serif; }
-    .check-row { display:flex; gap:10px; border:1px solid rgba(230,207,139,.22); border-radius:12px; padding:10px; background:rgba(2,21,35,.35); }
-    .check-row small { color:#a9c0d1; }
+    .field input,.field select { border-radius:12px; border:1px solid var(--border-2); background:var(--field); color:var(--text); padding:10px 12px; font:600 .92rem var(--font-sans); }
+    .field input:focus,.field select:focus { outline:3px solid rgba(230,207,139,.25); outline-offset:2px; }
+    .check-row { display:flex; gap:10px; border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--field-2); }
+    .check-row small { color:var(--muted); }
     .prayer-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
-    .prayer-pill { display:flex; align-items:center; gap:8px; border:1px solid rgba(230,207,139,.22); border-radius:12px; padding:9px 10px; background:rgba(2,21,35,.35); }
-    .prayer-pill span { font-weight:700; color:#e7f1fa; }
+    .prayer-pill { display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:var(--field-2); }
+    .prayer-pill span { font-weight:700; color:var(--text); }
     .form-actions { margin-top:14px; display:flex; flex-wrap:wrap; gap:10px; }
     .flash { width:min(1100px,94vw); margin:0 auto 12px; border-radius:12px; padding:10px 14px; font-weight:700; }
-    .flash.success { background:rgba(94,196,168,.22); color:#d8fff4; border:1px solid rgba(94,196,168,.5); }
-    .flash.error { background:rgba(255,159,137,.2); color:#ffe4dc; border:1px solid rgba(255,159,137,.55); }
-    .footer { margin:22px auto 26px; text-align:center; color:#d5e2ee; font-size:.9rem; }
-    .footer p { margin:8px 0 0; color:#a8bed0; }
+    .flash.success { background:rgba(94,196,168,.22); color:var(--text); border:1px solid rgba(94,196,168,.5); }
+    .flash.error { background:rgba(255,159,137,.2); color:var(--text); border:1px solid rgba(255,159,137,.55); }
+    .footer { margin:22px auto 26px; text-align:center; color:var(--muted-2); font-size:.9rem; }
+    .footer p { margin:8px 0 0; color:var(--muted); }
     .footer-links { display:inline-flex; gap:10px; align-items:center; }
-    .footer-links a { color:#f4df9e; text-decoration:none; }
+    .footer-links a { color:var(--gold-2); text-decoration:none; }
     .footer-links a:hover { text-decoration:underline; }
+
+    .switch { position:relative; display:inline-flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--field-2); cursor:pointer; user-select:none; }
+    .switch input { position:absolute; opacity:0; width:1px; height:1px; }
+    .slider { width:44px; height:24px; border-radius:999px; background:rgba(230,207,139,.18); border:1px solid var(--border-2); position:relative; flex:0 0 auto; }
+    html[data-theme="light"] .slider { background:rgba(183,139,47,.14); }
+    .slider::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:999px; background:linear-gradient(180deg,var(--gold-2),var(--gold)); box-shadow:0 6px 16px rgba(0,0,0,.18); transition:transform .18s ease; }
+    .switch input:checked + .slider::after { transform:translateX(20px); }
+    .switch-text { font:700 .86rem var(--font-sans); color:var(--muted-2); }
+    html[data-theme="light"] .switch-text { color:var(--muted-2); }
+    html[data-theme="dark"] .switch-text { color:var(--muted-2); }
     @media (max-width:700px) { .hero h1{font-size:1.8rem;} .topbar{flex-direction:column;align-items:flex-start;} .actions{justify-content:flex-start;} }
   </style>
 </head>
@@ -776,6 +885,7 @@ function renderLayout({ title, content, user, inviteUrlValue, flash, dashboardLa
     </a>
     <div class="actions">
       ${languageSwitcher}
+      ${themeSwitcher}
       ${userBadge}
       <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
       ${authActions}
@@ -1448,8 +1558,16 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     res.redirect(returnPath);
   });
 
+  app.post("/dashboard/theme", (req, res) => {
+    const nextTheme = normalizeDashboardTheme(req.body.theme);
+    req.session.dashboardTheme = nextTheme;
+    const returnPath = safeReturnPath(req.body.return_to || req.get("referer") || "/");
+    res.redirect(returnPath);
+  });
+
   app.get("/", (req, res) => {
     const dashboardLanguage = getDashboardLanguage(req);
+    const dashboardTheme = getDashboardTheme(req);
     const flash = consumeFlash(req);
     const content = buildHomeContent({ oauthEnabled, dashboardLanguage });
     const html = renderLayout({
@@ -1459,6 +1577,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
       flash,
       dashboardLanguage,
+      dashboardTheme,
       returnPath: req.originalUrl || "/"
     });
     res.status(200).send(html);
@@ -1466,6 +1585,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
 
   app.get("/privacy", (req, res) => {
     const dashboardLanguage = getDashboardLanguage(req);
+    const dashboardTheme = getDashboardTheme(req);
     const html = renderLayout({
       title: dashboardLanguage === "arabic" ? "سياسة الخصوصية" : "Privacy Policy",
       content: buildPrivacyContent(dashboardLanguage),
@@ -1473,6 +1593,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
       flash: consumeFlash(req),
       dashboardLanguage,
+      dashboardTheme,
       returnPath: req.originalUrl || "/privacy"
     });
     res.status(200).send(html);
@@ -1480,6 +1601,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
 
   app.get("/terms", (req, res) => {
     const dashboardLanguage = getDashboardLanguage(req);
+    const dashboardTheme = getDashboardTheme(req);
     const html = renderLayout({
       title: dashboardLanguage === "arabic" ? "شروط الخدمة" : "Terms of Service",
       content: buildTermsContent(dashboardLanguage),
@@ -1487,6 +1609,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
       flash: consumeFlash(req),
       dashboardLanguage,
+      dashboardTheme,
       returnPath: req.originalUrl || "/terms"
     });
     res.status(200).send(html);
@@ -1561,6 +1684,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   app.get("/dashboard", requireAuth, async (req, res) => {
     try {
       const dashboardLanguage = getDashboardLanguage(req);
+      const dashboardTheme = getDashboardTheme(req);
       await refreshDiscordSession(req);
       const userId = req.session.discordUser.id;
       const userConfig = userStore.getUserConfig(userId);
@@ -1585,6 +1709,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
         flash: consumeFlash(req),
         dashboardLanguage,
+        dashboardTheme,
         returnPath: req.originalUrl || "/dashboard"
       });
       res.status(200).send(html);
@@ -1755,6 +1880,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   app.get("/dashboard/guild/:guildId", requireAuth, async (req, res) => {
     try {
       const dashboardLanguage = getDashboardLanguage(req);
+      const dashboardTheme = getDashboardTheme(req);
       await refreshDiscordSession(req);
       const guildId = req.params.guildId;
       const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
@@ -1807,6 +1933,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
         flash: consumeFlash(req),
         dashboardLanguage,
+        dashboardTheme,
         returnPath: req.originalUrl || `/dashboard/guild/${guildId}`
       });
       res.status(200).send(html);
