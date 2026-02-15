@@ -114,8 +114,50 @@ const AZKAR_ENTRIES = [
   {
     id: "azkar-015",
     text: "Allahumma inni a'udhu bika minal-hammi wal-hazan, wal-'ajzi wal-kasal.",
-    textArabic: "اللهم إني أعوذ بك من الهم والحزن والعجز والكسل.",
+    textArabic: "اللهم إني أعوذ بك من الهم والحزن، والعجز والكسل.",
     source: "Sahih al-Bukhari 6369"
+  },
+  {
+    id: "azkar-016",
+    text: "A'udhu bi kalimatillahi at-tammati min sharri ma khalaq.",
+    textArabic: "أعوذ بكلمات الله التامات من شر ما خلق.",
+    source: "Sahih Muslim"
+  },
+  {
+    id: "azkar-017",
+    text: "SubhanAllahi wal-hamdu lillahi wa la ilaha illa Allahu wallahu akbar.",
+    textArabic: "سبحان الله والحمد لله ولا إله إلا الله والله أكبر.",
+    source: "Sahih Muslim"
+  },
+  {
+    id: "azkar-018",
+    text: "La ilaha illa Anta, Subhanaka, inni kuntu minaz-zalimin.",
+    textArabic: "لا إله إلا أنت سبحانك إني كنت من الظالمين.",
+    source: "Quran 21:87"
+  },
+  {
+    id: "azkar-019",
+    text: "Allahummaghfir li, warhamni, wahdini, wa 'afini, warzuqni.",
+    textArabic: "اللهم اغفر لي وارحمني واهدني وعافني وارزقني.",
+    source: "Sahih Muslim"
+  },
+  {
+    id: "azkar-020",
+    text: "Allahumma innaka 'afuwwun tuhibbul-'afwa fa'fu 'anni.",
+    textArabic: "اللهم إنك عفو تحب العفو فاعف عني.",
+    source: "Jami` at-Tirmidhi"
+  },
+  {
+    id: "azkar-021",
+    text: "Rabbana la tuzigh qulubana ba'da idh hadaytana wa hab lana min ladunka rahmah.",
+    textArabic: "ربنا لا تزغ قلوبنا بعد إذ هديتنا وهب لنا من لدنك رحمة.",
+    source: "Quran 3:8"
+  },
+  {
+    id: "azkar-022",
+    text: "Hasbiya Allahu la ilaha illa Huwa, 'alayhi tawakkaltu wa Huwa Rabbul-'Arshil-'Azim.",
+    textArabic: "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم.",
+    source: "Quran 9:129"
   }
 ];
 
@@ -129,7 +171,7 @@ const HADITH_ENTRIES = [
   },
   {
     id: "hadith-002",
-    text: "The best among you are those who have the best manners and character.",
+    text: "The best among you are those with the best manners and character.",
     textArabic: "خيركم أحسنكم أخلاقا.",
     source: "Sahih al-Bukhari 3559",
     grade: "sahih"
@@ -157,49 +199,49 @@ const HADITH_ENTRIES = [
   },
   {
     id: "hadith-006",
-    text: "The strong person is not the one who can wrestle others down; the strong person controls himself when angry.",
+    text: "True strength is controlling yourself when angry.",
     textArabic: "ليس الشديد بالصرعة إنما الشديد الذي يملك نفسه عند الغضب.",
     source: "Sahih al-Bukhari 6114, Sahih Muslim 2609",
     grade: "sahih"
   },
   {
     id: "hadith-007",
-    text: "Make things easy and do not make them difficult. Give glad tidings and do not drive people away.",
+    text: "Make things easy and do not make them difficult; give glad tidings and do not drive people away.",
     textArabic: "يسروا ولا تعسروا وبشروا ولا تنفروا.",
     source: "Sahih al-Bukhari 69, Sahih Muslim 1734",
     grade: "sahih"
   },
   {
     id: "hadith-008",
-    text: "The most beloved deeds to Allah are those done regularly, even if they are small.",
+    text: "The deeds most loved by Allah are those done consistently, even if small.",
     textArabic: "أحب الأعمال إلى الله أدومها وإن قل.",
     source: "Sahih al-Bukhari 6465, Sahih Muslim 783",
     grade: "sahih"
   },
   {
     id: "hadith-009",
-    text: "Whoever follows a path seeking knowledge, Allah will make a path to Paradise easy for them.",
+    text: "Whoever seeks knowledge, Allah will make a path to Paradise easy for them.",
     textArabic: "من سلك طريقا يلتمس فيه علما سهل الله له به طريقا إلى الجنة.",
     source: "Sahih Muslim 2699",
     grade: "sahih"
   },
   {
     id: "hadith-010",
-    text: "The merciful are shown mercy by the Most Merciful. Show mercy to those on earth and the One above the heavens will show mercy to you.",
+    text: "Show mercy to those on earth; the One above the heavens will show mercy to you.",
     textArabic: "الراحمون يرحمهم الرحمن، ارحموا من في الأرض يرحمكم من في السماء.",
     source: "Jami` at-Tirmidhi 1924",
     grade: "hasan"
   },
   {
     id: "hadith-011",
-    text: "The dearest places to Allah are the masajid, and the most disliked places to Allah are the markets.",
+    text: "The most beloved places to Allah are the masajid, and the most disliked places are the markets.",
     textArabic: "أحب البلاد إلى الله مساجدها وأبغض البلاد إلى الله أسواقها.",
     source: "Sahih Muslim 671",
     grade: "sahih"
   },
   {
     id: "hadith-012",
-    text: "A believer should not hate a believing woman; if he dislikes one trait, he should be pleased with another.",
+    text: "A believing man should not hate a believing woman; if he dislikes one trait, he should be pleased with another.",
     textArabic: "لا يفرك مؤمن مؤمنة إن كره منها خلقا رضي منها آخر.",
     source: "Sahih Muslim 1469",
     grade: "sahih"
@@ -220,9 +262,79 @@ const HADITH_ENTRIES = [
   },
   {
     id: "hadith-015",
-    text: "The world is a provision, and the best provision in this world is a righteous spouse.",
+    text: "The world is a provision, and the best provision in it is a righteous spouse.",
     textArabic: "الدنيا متاع وخير متاع الدنيا المرأة الصالحة.",
     source: "Sahih Muslim 1467",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-016",
+    text: "Religion is sincere counsel.",
+    textArabic: "الدين النصيحة.",
+    source: "Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-017",
+    text: "Purification is part of faith.",
+    textArabic: "الطهور شطر الإيمان.",
+    source: "Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-018",
+    text: "Allah looks at your hearts and your deeds.",
+    textArabic: "إن الله لا ينظر إلى صوركم وأموالكم ولكن ينظر إلى قلوبكم وأعمالكم.",
+    source: "Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-019",
+    text: "A good word is charity.",
+    textArabic: "والكلمة الطيبة صدقة.",
+    source: "Sahih al-Bukhari, Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-020",
+    text: "Do not envy and do not hate; be servants of Allah as brothers.",
+    textArabic: "لا تحاسدوا ولا تباغضوا وكونوا عباد الله إخوانا.",
+    source: "Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-021",
+    text: "Beware of suspicion; suspicion is the most false form of speech.",
+    textArabic: "إياكم والظن فإن الظن أكذب الحديث.",
+    source: "Sahih al-Bukhari, Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-022",
+    text: "The most beloved words to Allah are: SubhanAllah, Alhamdulillah, La ilaha illa Allah, Allahu Akbar.",
+    textArabic: "أحب الكلام إلى الله أربع: سبحان الله، والحمد لله، ولا إله إلا الله، والله أكبر.",
+    source: "Sahih Muslim",
+    grade: "sahih"
+  },
+  {
+    id: "hadith-023",
+    text: "The best of you are the best to their families.",
+    textArabic: "خيركم خيركم لأهله.",
+    source: "Jami` at-Tirmidhi",
+    grade: "hasan"
+  },
+  {
+    id: "hadith-024",
+    text: "Whoever does not thank people has not truly thanked Allah.",
+    textArabic: "من لا يشكر الناس لا يشكر الله.",
+    source: "Jami` at-Tirmidhi",
+    grade: "hasan"
+  },
+  {
+    id: "hadith-025",
+    text: "Allah has prescribed excellence in everything.",
+    textArabic: "إن الله كتب الإحسان على كل شيء.",
+    source: "Sahih Muslim",
     grade: "sahih"
   }
 ];
