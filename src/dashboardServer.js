@@ -748,6 +748,11 @@ function renderLayout({
   const normalizedLanguage = normalizeDashboardLanguage(dashboardLanguage);
   const normalizedTheme = normalizeDashboardTheme(dashboardTheme);
   const i18n = getDashboardI18n(normalizedLanguage);
+  const safeCurrent = safeReturnPath(returnPath || "/");
+  const safeCurrentPath = safeCurrent.split("?")[0] || "/";
+  const onDashboard = safeCurrentPath === "/dashboard" || safeCurrentPath.startsWith("/dashboard/");
+  const onPrivacy = safeCurrentPath === "/privacy";
+  const onTerms = safeCurrentPath === "/terms";
   const languageOptions = DASHBOARD_LANGUAGE_CHOICES.map((choice) =>
     optionTag({
       value: choice.value,
@@ -807,6 +812,20 @@ function renderLayout({
       </div>
       <p>© ${new Date().getFullYear()} ${escapeHtml(i18n.brandTitle)}. ${escapeHtml(i18n.footerRights)}</p>
     </footer>
+  `;
+  const navHtml = `
+    <nav class="nav" aria-label="Site">
+      <a class="nav-link ${safeCurrentPath === "/" ? "active" : ""}" href="/" ${safeCurrentPath === "/" ? 'aria-current="page"' : ""}>Home</a>
+      <a class="nav-link ${onDashboard ? "active" : ""}" href="/dashboard" ${onDashboard ? 'aria-current="page"' : ""}>${escapeHtml(
+        i18n.dashboard
+      )}</a>
+      <a class="nav-link ${onPrivacy ? "active" : ""}" href="/privacy" ${onPrivacy ? 'aria-current="page"' : ""}>${escapeHtml(
+        i18n.privacyPolicy
+      )}</a>
+      <a class="nav-link ${onTerms ? "active" : ""}" href="/terms" ${onTerms ? 'aria-current="page"' : ""}>${escapeHtml(
+        i18n.termsOfService
+      )}</a>
+    </nav>
   `;
 
   return `<!doctype html>
@@ -881,7 +900,12 @@ function renderLayout({
     }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--text); font-family:var(--font-sans); background:var(--bg-a),var(--bg-b),var(--bg-c),var(--bg-d, none); min-height:100vh; }
-    .wrap { width:min(1100px,94vw); margin:0 auto; }
+    .wrap { width:min(1100px, calc(100% - 40px)); margin:0 auto; }
+    .shell { display:flex; min-height:100vh; }
+    [dir="rtl"] .shell { flex-direction:row-reverse; }
+    .sidebar { width:290px; padding:18px 14px; background:var(--panel); border-inline-end:1px solid var(--border); backdrop-filter:saturate(120%) blur(10px); position:sticky; top:0; height:100vh; overflow:auto; }
+    .sidebar-inner { display:flex; flex-direction:column; gap:14px; height:100%; }
+    .page { flex:1; min-width:0; padding:18px 0 0; }
     .topbar { display:flex; justify-content:space-between; gap:12px; padding:20px 0; align-items:center; }
     .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
     .brand-icon { width:44px; height:44px; border-radius:999px; border:1px solid rgba(230,207,139,.62); box-shadow:0 0 0 3px var(--brand-ring); background:var(--brand-bg); object-fit:cover; }
@@ -898,6 +922,24 @@ function renderLayout({
     .inline-form { display:inline; }
     .user-badge { display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(230,207,139,.3); border-radius:999px; padding:6px 12px 6px 6px; background:var(--panel); }
     .user-badge img { width:26px; height:26px; border-radius:999px; border:1px solid rgba(230,207,139,.6); }
+    .brand.sidebar-brand { padding:8px 10px; border-radius:14px; background:var(--card-2); border:1px solid rgba(230,207,139,.16); }
+    .brand.sidebar-brand .brand-icon { width:40px; height:40px; }
+    .brand.sidebar-brand .brand-text strong { font-size:1.1rem; }
+    .brand.sidebar-brand .brand-text span { font-size:.82rem; }
+
+    .nav { display:grid; gap:8px; }
+    .nav-link { display:flex; align-items:center; justify-content:space-between; text-decoration:none; color:var(--text); border:1px solid transparent; background:transparent; padding:10px 12px; border-radius:14px; font-weight:800; }
+    .nav-link:hover { background:var(--field-2); border-color:var(--border); }
+    .nav-link.active { background:linear-gradient(90deg, rgba(230,207,139,.18), rgba(94,196,168,.12)); border-color:var(--border-2); }
+    html[data-theme="light"] .nav-link.active { background:linear-gradient(90deg, rgba(183,139,47,.14), rgba(28,139,115,.08)); }
+
+    .sidebar-prefs { display:grid; gap:10px; padding:12px; border-radius:18px; background:var(--card-2); border:1px solid rgba(230,207,139,.16); }
+    .sidebar-actions { margin-top:auto; display:grid; gap:10px; }
+    .sidebar-actions .btn { width:100%; }
+    .sidebar-actions .user-badge { width:100%; justify-content:center; }
+    .lang-form, .theme-form { width:100%; }
+    .lang-select { width:100%; }
+    .switch { width:100%; justify-content:space-between; }
     .card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; box-shadow:var(--shadow); backdrop-filter:saturate(120%) blur(10px); }
     .hero h1, .section-title { font-family:var(--font-serif); color:var(--gold-2); margin:0 0 10px; }
     .hero h1 { font-size:2.2rem; }
@@ -924,7 +966,7 @@ function renderLayout({
     .prayer-pill { display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:var(--field-2); }
     .prayer-pill span { font-weight:700; color:var(--text); }
     .form-actions { margin-top:14px; display:flex; flex-wrap:wrap; gap:10px; }
-    .flash { width:min(1100px,94vw); margin:0 auto 12px; border-radius:12px; padding:10px 14px; font-weight:700; }
+    .flash { margin:0 0 12px; border-radius:12px; padding:10px 14px; font-weight:800; }
     .flash.success { background:rgba(94,196,168,.22); color:var(--text); border:1px solid rgba(94,196,168,.5); }
     .flash.error { background:rgba(255,159,137,.2); color:var(--text); border:1px solid rgba(255,159,137,.55); }
     .footer { margin:22px auto 26px; text-align:center; color:var(--muted-2); font-size:.9rem; }
@@ -942,26 +984,46 @@ function renderLayout({
     .switch-text { font:700 .86rem var(--font-sans); color:var(--muted-2); }
     html[data-theme="light"] .switch-text { color:var(--muted-2); }
     html[data-theme="dark"] .switch-text { color:var(--muted-2); }
-    @media (max-width:700px) { .hero h1{font-size:1.8rem;} .topbar{flex-direction:column;align-items:flex-start;} .actions{justify-content:flex-start;} }
+    @media (max-width:900px) {
+      .shell { flex-direction:column; }
+      [dir="rtl"] .shell { flex-direction:column; }
+      .sidebar { width:100%; height:auto; position:static; border-inline-end:0; border-bottom:1px solid var(--border); }
+      .sidebar-inner { height:auto; }
+      .nav { grid-auto-flow:column; grid-auto-columns:max-content; display:flex; flex-wrap:nowrap; overflow:auto; padding-bottom:6px; }
+      .sidebar-actions { margin-top:0; grid-template-columns:1fr; }
+      .sidebar-actions .btn { width:auto; }
+    }
+    @media (max-width:700px) { .hero h1{font-size:1.8rem;} }
   </style>
 </head>
 <body>
-  <header class="wrap topbar">
-    <a class="brand" href="/">
-      <img class="brand-icon" src="${escapeHtml(logoUrl)}" alt="Adhan Reminder logo" />
-      <span class="brand-text"><strong>${escapeHtml(i18n.brandTitle)}</strong><span>${escapeHtml(i18n.brandSubtitle)}</span></span>
-    </a>
-    <div class="actions">
-      ${languageSwitcher}
-      ${themeSwitcher}
-      ${userBadge}
-      <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
-      ${authActions}
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-inner">
+        <a class="brand sidebar-brand" href="/">
+          <img class="brand-icon" src="${escapeHtml(logoUrl)}" alt="Adhan Reminder logo" />
+          <span class="brand-text"><strong>${escapeHtml(i18n.brandTitle)}</strong><span>${escapeHtml(
+            i18n.brandSubtitle
+          )}</span></span>
+        </a>
+        ${navHtml}
+        <div class="sidebar-prefs">
+          ${languageSwitcher}
+          ${themeSwitcher}
+        </div>
+        <div class="sidebar-actions">
+          ${userBadge}
+          <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
+          ${authActions}
+        </div>
+      </div>
+    </aside>
+    <div class="page">
+      ${flashHtml ? `<div class="wrap">${flashHtml}</div>` : ""}
+      <main class="wrap stack">${content}</main>
+      ${footerHtml}
     </div>
-  </header>
-  ${flashHtml}
-  <main class="wrap stack">${content}</main>
-  ${footerHtml}
+  </div>
 </body>
 </html>`;
 }
