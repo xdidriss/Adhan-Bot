@@ -9,6 +9,7 @@ const { playAdhanInVoice } = require("./adhanVoice");
 const { ConfigStore } = require("./configStore");
 const { COUNTRY_NAMES } = require("./countries");
 const { startDashboardServer } = require("./dashboardServer");
+const { createQuranVoiceManager } = require("./quranVoice");
 const {
   CONTENT_LANGUAGE_LABELS,
   HADITH_GRADE_LABELS,
@@ -80,13 +81,18 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
 
+const quranVoice = createQuranVoiceManager({ client, guildStore });
+
 startDashboardServer({
   client,
   guildStore,
-  userStore
+  userStore,
+  quranVoice
 });
 
 const GUILD_ONLY_COMMANDS = new Set([
+  "quran-radio",
+  "quran-play",
   "set-location",
   "set-channels",
   "set-mention-role",
@@ -414,7 +420,11 @@ function styledBlock({ icon = ICONS.adhan, title, lines = [], language }) {
   const resolvedLanguage = normalizeContentLanguage(language || getCurrentContextLanguage());
   const localizedTitle = localizeText(title, resolvedLanguage);
   const localizedLines = lines.filter(Boolean).map((line) => localizeText(line, resolvedLanguage));
-  const body = [normalizeDisplayText(`${icon} **${localizedTitle}**`), ...localizedLines];
+  const body = [];
+  if (localizedTitle) {
+    body.push(normalizeDisplayText(`${icon} **${localizedTitle}**`));
+  }
+  body.push(...localizedLines);
   return normalizeDisplayText(body.join("\n"));
 }
 
@@ -524,12 +534,18 @@ function formatAzkarSettingsLines(config, { dm = false } = {}) {
 function formatHadithSettingsLines(config, { dm = false } = {}) {
   const language = resolveConfigLanguage(config, { dm });
   const enabled = dm ? config.dmHadithRemindersEnabled : config.hadithRemindersEnabled;
-  const time = normalizeReminderTime(dm ? config.dmHadithReminderTime : config.hadithReminderTime);
+  const intervalValue = dm ? config.dmHadithIntervalMinutes : config.hadithIntervalMinutes;
   const minGrade = normalizeHadithGrade(dm ? config.dmHadithMinGrade : config.hadithMinGrade);
   const gradeLabel = HADITH_GRADE_LABELS[minGrade] || minGrade;
+  const zone = config.location?.timezone || "UTC";
+  const intervalMinutes = sanitizeIntervalMinutes(intervalValue);
+  const lastSentRaw = dm ? config.dmHadithLastSentAt : config.hadithLastSentAt;
+  const parsedLastSent = toSafeIso(lastSentRaw, zone);
+  const lastSentLabel = parsedLastSent ? parsedLastSent.toFormat("yyyy-LL-dd HH:mm") : "Never";
   return [
     localizeText(`${ICONS.book} **Hadith Reminders:** ${enabled ? "Enabled" : "Disabled"}`, language),
-    localizeText(`${ICONS.clock} **Hadith Time:** ${time} (${config.location?.timezone || "UTC"})`, language),
+    localizeText(`${ICONS.clock} **Hadith Interval:** Every ${intervalMinutes} minutes`, language),
+    localizeText(`${ICONS.note} **Last Hadith Sent:** ${lastSentLabel}`, language),
     localizeText(`${ICONS.chart} **Hadith Grade Filter:** ${gradeLabel}`, language)
   ];
 }
@@ -752,7 +768,7 @@ function formatAzkarReminderText(entry, { isTest = false, language = "english" }
   const selectedText = getEntryTextByLanguage(entry, normalizedLanguage);
   return styledBlock({
     icon: isTest ? ICONS.test : ICONS.sparkle,
-    title: isTest ? "Test Azkar Reminder" : "Azkar Reminder",
+    title: null,
     lines: [
       `## ✨ ${selectedText} ✨`,
       `> ${ICONS.book} **Source:** ${entry.source}`
@@ -1128,19 +1144,18 @@ async function checkGuildHadithReminders(guildId, config) {
     return;
   }
 
-  const reminderTime = normalizeReminderTime(config.hadithReminderTime);
-  const scheduled = DateTime.fromFormat(`${nowInZone.toISODate()} ${reminderTime}`, "yyyy-LL-dd HH:mm", {
-    zone
-  });
-  if (!scheduled.isValid) {
-    console.error(`Invalid hadith reminder time for guild ${guildId}: ${reminderTime}`);
+  const intervalMinutes = sanitizeIntervalMinutes(config.hadithIntervalMinutes);
+  const lastSent = toSafeIso(config.hadithLastSentAt, zone);
+  if (!lastSent) {
+    guildStore.updateGuildConfig(guildId, (draft) => {
+      draft.hadithLastSentAt = nowInZone.toISO();
+      return draft;
+    });
     return;
   }
 
-  const currentMinute = nowInZone.startOf("minute").toFormat("yyyy-LL-dd HH:mm");
-  const targetMinute = scheduled.startOf("minute").toFormat("yyyy-LL-dd HH:mm");
-  const triggerToken = `${nowInZone.toISODate()}:${reminderTime}`;
-  if (currentMinute !== targetMinute || config.hadithLastTriggeredDate === triggerToken) {
+  const elapsedMinutes = nowInZone.diff(lastSent, "minutes").minutes;
+  if (elapsedMinutes < intervalMinutes) {
     return;
   }
 
@@ -1151,7 +1166,7 @@ async function checkGuildHadithReminders(guildId, config) {
   }
 
   guildStore.updateGuildConfig(guildId, (draft) => {
-    draft.hadithLastTriggeredDate = triggerToken;
+    draft.hadithLastSentAt = nowInZone.toISO();
     draft.recentHadithIds = result.nextRecentIds;
     return draft;
   });
@@ -1169,19 +1184,18 @@ async function checkUserHadithReminders(userId, config) {
     return;
   }
 
-  const reminderTime = normalizeReminderTime(config.dmHadithReminderTime);
-  const scheduled = DateTime.fromFormat(`${nowInZone.toISODate()} ${reminderTime}`, "yyyy-LL-dd HH:mm", {
-    zone
-  });
-  if (!scheduled.isValid) {
-    console.error(`Invalid hadith reminder time for user ${userId}: ${reminderTime}`);
+  const intervalMinutes = sanitizeIntervalMinutes(config.dmHadithIntervalMinutes);
+  const lastSent = toSafeIso(config.dmHadithLastSentAt, zone);
+  if (!lastSent) {
+    userStore.updateUserConfig(userId, (draft) => {
+      draft.dmHadithLastSentAt = nowInZone.toISO();
+      return draft;
+    });
     return;
   }
 
-  const currentMinute = nowInZone.startOf("minute").toFormat("yyyy-LL-dd HH:mm");
-  const targetMinute = scheduled.startOf("minute").toFormat("yyyy-LL-dd HH:mm");
-  const triggerToken = `${nowInZone.toISODate()}:${reminderTime}`;
-  if (currentMinute !== targetMinute || config.dmHadithLastTriggeredDate === triggerToken) {
+  const elapsedMinutes = nowInZone.diff(lastSent, "minutes").minutes;
+  if (elapsedMinutes < intervalMinutes) {
     return;
   }
 
@@ -1192,7 +1206,7 @@ async function checkUserHadithReminders(userId, config) {
   }
 
   userStore.updateUserConfig(userId, (draft) => {
-    draft.dmHadithLastTriggeredDate = triggerToken;
+    draft.dmHadithLastSentAt = nowInZone.toISO();
     draft.recentHadithIds = result.nextRecentIds;
     return draft;
   });
@@ -1228,6 +1242,9 @@ async function checkAllReminders() {
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   await checkAllReminders();
+  await quranVoice.ensureConfiguredRadios().catch((error) =>
+    console.error("Failed to auto-start Quran radios:", error.message)
+  );
   setInterval(checkAllReminders, CHECK_INTERVAL_MS);
 });
 
@@ -1279,6 +1296,139 @@ client.on("interactionCreate", async (interaction) => {
 
   return languageContext.run({ language: interactionLanguage }, async () => {
     try {
+      if (commandName === "quran-radio") {
+        if (!(await requireManageGuild(interaction))) {
+          return;
+        }
+        const sub = interaction.options.getSubcommand(true);
+        if (!quranVoice) {
+          await interaction.reply({ content: styledError("Quran voice module is not enabled."), flags: MessageFlags.Ephemeral });
+          return;
+        }
+
+        if (sub === "status") {
+          const status = quranVoice.getStatus(guildId);
+          const lines = status
+            ? [
+                `${ICONS.loop} **Mode:** ${status.mode || "stopped"}`,
+                `${ICONS.check} **Connected:** ${status.hasConnection ? "Yes" : "No"}`,
+                ...(status.lastError ? [`${ICONS.warning} **Last Error:** ${status.lastError}`] : [])
+              ]
+            : [`${ICONS.loop} **Mode:** stopped`];
+          await interaction.reply({
+            content: styledBlock({ icon: ICONS.book, title: "Quran Radio Status", lines }),
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        if (sub === "stop") {
+          await quranVoice.stopGuild(guildId, { leave: true });
+          await interaction.reply({
+            content: styledBlock({ icon: ICONS.book, title: "Quran Radio", lines: [`${ICONS.check} Stopped.`] }),
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        const voiceChannel = interaction.options.getChannel("voice_channel");
+        const voiceChannelId =
+          voiceChannel?.id ||
+          interaction.member?.voice?.channelId ||
+          guildConfig?.quranRadioVoiceChannelId ||
+          guildConfig?.adhanVoiceChannelId;
+        if (!voiceChannelId) {
+          await interaction.reply({
+            content: styledError("Join a voice channel (or set a Quran voice channel in the dashboard) before starting radio."),
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        const qariId = interaction.options.getInteger("reciter_id") ?? guildConfig?.quranRadioQariId ?? 5;
+        const volume = interaction.options.getNumber("volume") ?? guildConfig?.quranRadioVolume ?? 0.35;
+        const startSurahId = guildConfig?.quranDefaultSurahId ?? 1;
+        await quranVoice.startRadio({ guild: interaction.guild, voiceChannelId, qariId, volume, startSurahId });
+        await interaction.reply({
+          content: styledBlock({
+            icon: ICONS.book,
+            title: "Quran Radio Started",
+            lines: [
+              `${ICONS.loud} **Voice Channel:** <#${voiceChannelId}>`,
+              `${ICONS.loop} **Mode:** 24/7 surah order`,
+              `${ICONS.clock} **Reciter ID:** ${qariId}`
+            ]
+          }),
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      if (commandName === "quran-play") {
+        if (!(await requireManageGuild(interaction))) {
+          return;
+        }
+        if (!quranVoice) {
+          await interaction.reply({ content: styledError("Quran voice module is not enabled."), flags: MessageFlags.Ephemeral });
+          return;
+        }
+
+        const sub = interaction.options.getSubcommand(true);
+        const voiceChannel = interaction.options.getChannel("voice_channel");
+        const voiceChannelId =
+          voiceChannel?.id ||
+          interaction.member?.voice?.channelId ||
+          guildConfig?.quranRadioVoiceChannelId ||
+          guildConfig?.adhanVoiceChannelId;
+        if (!voiceChannelId) {
+          await interaction.reply({
+            content: styledError("Join a voice channel (or set a Quran voice channel in the dashboard) before playing Quran."),
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        if (sub === "surah") {
+          const surah = interaction.options.getInteger("surah", true);
+          const qariId = interaction.options.getInteger("reciter_id") ?? guildConfig?.quranRadioQariId ?? 5;
+          const volume = interaction.options.getNumber("volume") ?? guildConfig?.quranRadioVolume ?? 0.35;
+          await quranVoice.playSurahOnce({ guild: interaction.guild, voiceChannelId, qariId, surahId: surah, volume });
+          await interaction.reply({
+            content: styledBlock({
+              icon: ICONS.book,
+              title: "Quran Playback",
+              lines: [`${ICONS.check} Playing surah ${surah} in <#${voiceChannelId}>.`]
+            }),
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        const surah = interaction.options.getInteger("surah", true);
+        const fromAyah = interaction.options.getInteger("from", true);
+        const toAyah = interaction.options.getInteger("to") ?? fromAyah;
+        const reciterKey = interaction.options.getString("reciter_key") || guildConfig?.quranEveryAyahReciterKey || "Alafasy_128kbps";
+        const volume = interaction.options.getNumber("volume") ?? guildConfig?.quranRadioVolume ?? 0.35;
+        await quranVoice.playAyahRangeOnce({
+          guild: interaction.guild,
+          voiceChannelId,
+          everyAyahReciterKey: reciterKey,
+          surahId: surah,
+          fromAyah,
+          toAyah,
+          volume
+        });
+        await interaction.reply({
+          content: styledBlock({
+            icon: ICONS.book,
+            title: "Quran Playback",
+            lines: [`${ICONS.check} Playing ${surah}:${fromAyah}-${toAyah} in <#${voiceChannelId}>.`]
+          }),
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
       if (commandName === "set-location") {
         if (!(await requireManageGuild(interaction))) {
           return;
@@ -1470,17 +1620,12 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const enabled = interaction.options.getBoolean("enabled", true);
-      const hour = interaction.options.getInteger("hour");
-      const minute = interaction.options.getInteger("minute");
       const minGrade = normalizeHadithGrade(interaction.options.getString("min_grade") || guildConfig.hadithMinGrade);
       const language = normalizeContentLanguage(
         interaction.options.getString("language") || resolveConfigLanguage(guildConfig)
       );
-      const reminderTime = buildReminderTime({
-        hour,
-        minute,
-        fallback: guildConfig.hadithReminderTime
-      });
+      const intervalOption = interaction.options.getInteger("interval_minutes");
+      const nextInterval = sanitizeIntervalMinutes(intervalOption ?? guildConfig.hadithIntervalMinutes);
 
       if (enabled && !guildConfig.reminderChannelId) {
         await interaction.reply({
@@ -1500,13 +1645,14 @@ client.on("interactionCreate", async (interaction) => {
 
       guildStore.updateGuildConfig(guildId, (draft) => {
         draft.hadithRemindersEnabled = enabled;
-        draft.hadithReminderTime = reminderTime;
+        draft.hadithIntervalMinutes = nextInterval;
         draft.hadithMinGrade = minGrade;
         draft.language = language;
         draft.azkarLanguage = language;
         draft.hadithLanguage = language;
         if (enabled) {
           draft.hadithLastTriggeredDate = null;
+          draft.hadithLastSentAt = null;
         }
         return draft;
       });
@@ -1517,7 +1663,7 @@ client.on("interactionCreate", async (interaction) => {
           title: enabled ? "Hadith Reminders Enabled" : "Hadith Reminders Disabled",
           lines: [
             `${ICONS.loop} **Status:** ${enabled ? "Enabled" : "Disabled"}`,
-            `${ICONS.clock} **Time:** ${reminderTime} (${guildConfig.location?.timezone || "UTC"})`,
+            `${ICONS.clock} **Interval:** Every ${nextInterval} minutes`,
             `${ICONS.chart} **Grade Filter:** ${HADITH_GRADE_LABELS[minGrade] || minGrade}`,
             `${ICONS.book} **Language:** ${getContentLanguageLabel(language)}`
           ],
@@ -1905,17 +2051,12 @@ client.on("interactionCreate", async (interaction) => {
 
     if (commandName === "dm-hadith-reminders") {
       const enabled = interaction.options.getBoolean("enabled", true);
-      const hour = interaction.options.getInteger("hour");
-      const minute = interaction.options.getInteger("minute");
       const minGrade = normalizeHadithGrade(interaction.options.getString("min_grade") || userConfig.dmHadithMinGrade);
       const language = normalizeContentLanguage(
         interaction.options.getString("language") || resolveConfigLanguage(userConfig, { dm: true })
       );
-      const reminderTime = buildReminderTime({
-        hour,
-        minute,
-        fallback: userConfig.dmHadithReminderTime
-      });
+      const intervalOption = interaction.options.getInteger("interval_minutes");
+      const nextInterval = sanitizeIntervalMinutes(intervalOption ?? userConfig.dmHadithIntervalMinutes);
 
       if (enabled && !hasValidLocation(userConfig)) {
         await interaction.reply(
@@ -1929,13 +2070,14 @@ client.on("interactionCreate", async (interaction) => {
 
       userStore.updateUserConfig(userId, (draft) => {
         draft.dmHadithRemindersEnabled = enabled;
-        draft.dmHadithReminderTime = reminderTime;
+        draft.dmHadithIntervalMinutes = nextInterval;
         draft.dmHadithMinGrade = minGrade;
         draft.language = language;
         draft.dmAzkarLanguage = language;
         draft.dmHadithLanguage = language;
         if (enabled) {
           draft.dmHadithLastTriggeredDate = null;
+          draft.dmHadithLastSentAt = null;
         }
         return draft;
       });
@@ -1948,7 +2090,7 @@ client.on("interactionCreate", async (interaction) => {
             title: enabled ? "DM Hadith Enabled" : "DM Hadith Disabled",
             lines: [
               `${ICONS.loop} **Status:** ${enabled ? "Enabled" : "Disabled"}`,
-              `${ICONS.clock} **Time:** ${reminderTime} (${userConfig.location?.timezone || "UTC"})`,
+              `${ICONS.clock} **Interval:** Every ${nextInterval} minutes`,
               `${ICONS.chart} **Grade Filter:** ${HADITH_GRADE_LABELS[minGrade] || minGrade}`,
               `${ICONS.book} **Language:** ${getContentLanguageLabel(language)}`
             ],

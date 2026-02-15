@@ -51,10 +51,20 @@ const DEFAULT_GUILD_CONFIG = {
   azkarLanguage: "english",
   azkarLastSentAt: null,
   hadithRemindersEnabled: false,
+  hadithIntervalMinutes: 360,
   hadithReminderTime: "20:00",
   hadithMinGrade: "sahih",
   hadithLanguage: "english",
   hadithLastTriggeredDate: null,
+  hadithLastSentAt: null,
+  quranRadioEnabled: false,
+  quranRadioVoiceChannelId: null,
+  quranRadioQariId: 5,
+  quranRadioVolume: 0.35,
+  quranEveryAyahReciterKey: "Alafasy_128kbps",
+  quranDefaultSurahId: 1,
+  quranDefaultAyahFrom: 1,
+  quranDefaultAyahTo: 7,
   recentAzkarIds: [],
   recentHadithIds: []
 };
@@ -71,8 +81,32 @@ function normalizeGuildConfig(config) {
   normalized.prePrayerSelections = normalizePrePrayerSelections(config?.prePrayerSelections);
   normalized.prePrayerLastTriggered = { ...(config?.prePrayerLastTriggered || {}) };
   normalized.lastTriggered = { ...(config?.lastTriggered || {}) };
+  normalized.hadithIntervalMinutes = Number.isFinite(Number(config?.hadithIntervalMinutes))
+    ? Math.min(1440, Math.max(30, Math.round(Number(config.hadithIntervalMinutes))))
+    : DEFAULT_GUILD_CONFIG.hadithIntervalMinutes;
   normalized.recentAzkarIds = Array.isArray(config?.recentAzkarIds) ? [...config.recentAzkarIds] : [];
   normalized.recentHadithIds = Array.isArray(config?.recentHadithIds) ? [...config.recentHadithIds] : [];
+  normalized.quranRadioEnabled = Boolean(config?.quranRadioEnabled);
+  normalized.quranRadioVoiceChannelId = config?.quranRadioVoiceChannelId || null;
+  normalized.quranRadioQariId = Number.isFinite(Number(config?.quranRadioQariId))
+    ? Math.max(1, Math.floor(Number(config.quranRadioQariId)))
+    : DEFAULT_GUILD_CONFIG.quranRadioQariId;
+  normalized.quranRadioVolume = Number.isFinite(Number(config?.quranRadioVolume))
+    ? Math.max(0, Math.min(1, Number(config.quranRadioVolume)))
+    : DEFAULT_GUILD_CONFIG.quranRadioVolume;
+  normalized.quranEveryAyahReciterKey =
+    typeof config?.quranEveryAyahReciterKey === "string" && config.quranEveryAyahReciterKey.trim()
+      ? config.quranEveryAyahReciterKey.trim()
+      : DEFAULT_GUILD_CONFIG.quranEveryAyahReciterKey;
+  normalized.quranDefaultSurahId = Number.isFinite(Number(config?.quranDefaultSurahId))
+    ? Math.max(1, Math.min(114, Math.floor(Number(config.quranDefaultSurahId))))
+    : DEFAULT_GUILD_CONFIG.quranDefaultSurahId;
+  normalized.quranDefaultAyahFrom = Number.isFinite(Number(config?.quranDefaultAyahFrom))
+    ? Math.max(1, Math.floor(Number(config.quranDefaultAyahFrom)))
+    : DEFAULT_GUILD_CONFIG.quranDefaultAyahFrom;
+  normalized.quranDefaultAyahTo = Number.isFinite(Number(config?.quranDefaultAyahTo))
+    ? Math.max(1, Math.floor(Number(config.quranDefaultAyahTo)))
+    : DEFAULT_GUILD_CONFIG.quranDefaultAyahTo;
   return normalized;
 }
 

@@ -85,6 +85,128 @@ function addContentLanguageOption(option) {
 function buildCommands() {
   return [
     new SlashCommandBuilder()
+      .setName("quran-radio")
+      .setDescription("Start/stop a 24/7 Quran recitation in a voice channel.")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+      .setDMPermission(false)
+      .addSubcommand((sub) =>
+        sub
+          .setName("start")
+          .setDescription("Start 24/7 Quran recitation (surah order).")
+          .addChannelOption((option) =>
+            option
+              .setName("voice_channel")
+              .setDescription("Voice channel to join (optional)")
+              .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+              .setRequired(false)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("reciter_id")
+              .setDescription("QuranicAudio reciter ID (optional)")
+              .setRequired(false)
+          )
+          .addNumberOption((option) =>
+            option
+              .setName("volume")
+              .setDescription("Volume 0.0 - 1.0 (optional)")
+              .setMinValue(0)
+              .setMaxValue(1)
+              .setRequired(false)
+          )
+      )
+      .addSubcommand((sub) => sub.setName("stop").setDescription("Stop Quran radio and leave voice."))
+      .addSubcommand((sub) => sub.setName("status").setDescription("Show Quran radio status.")),
+    new SlashCommandBuilder()
+      .setName("quran-play")
+      .setDescription("Play a specific surah or ayah range in voice.")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+      .setDMPermission(false)
+      .addSubcommand((sub) =>
+        sub
+          .setName("surah")
+          .setDescription("Play a surah now.")
+          .addIntegerOption((option) =>
+            option
+              .setName("surah")
+              .setDescription("Surah number (1-114)")
+              .setMinValue(1)
+              .setMaxValue(114)
+              .setRequired(true)
+          )
+          .addChannelOption((option) =>
+            option
+              .setName("voice_channel")
+              .setDescription("Voice channel to join (optional)")
+              .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+              .setRequired(false)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("reciter_id")
+              .setDescription("QuranicAudio reciter ID (optional)")
+              .setRequired(false)
+          )
+          .addNumberOption((option) =>
+            option
+              .setName("volume")
+              .setDescription("Volume 0.0 - 1.0 (optional)")
+              .setMinValue(0)
+              .setMaxValue(1)
+              .setRequired(false)
+          )
+      )
+      .addSubcommand((sub) =>
+        sub
+          .setName("ayah")
+          .setDescription("Play an ayah range now (EveryAyah dataset).")
+          .addIntegerOption((option) =>
+            option
+              .setName("surah")
+              .setDescription("Surah number (1-114)")
+              .setMinValue(1)
+              .setMaxValue(114)
+              .setRequired(true)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("from")
+              .setDescription("Starting ayah number")
+              .setMinValue(1)
+              .setMaxValue(999)
+              .setRequired(true)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("to")
+              .setDescription("Ending ayah number (optional)")
+              .setMinValue(1)
+              .setMaxValue(999)
+              .setRequired(false)
+          )
+          .addStringOption((option) =>
+            option
+              .setName("reciter_key")
+              .setDescription("EveryAyah reciter key (optional, e.g. Alafasy_128kbps)")
+              .setRequired(false)
+          )
+          .addChannelOption((option) =>
+            option
+              .setName("voice_channel")
+              .setDescription("Voice channel to join (optional)")
+              .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+              .setRequired(false)
+          )
+          .addNumberOption((option) =>
+            option
+              .setName("volume")
+              .setDescription("Volume 0.0 - 1.0 (optional)")
+              .setMinValue(0)
+              .setMaxValue(1)
+              .setRequired(false)
+          )
+      ),
+    new SlashCommandBuilder()
       .setName("set-location")
       .setDescription("Set city and country for prayer time calculations.")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
@@ -162,29 +284,21 @@ function buildCommands() {
       .addStringOption(addContentLanguageOption),
     new SlashCommandBuilder()
       .setName("set-hadith-reminders")
-      .setDescription("Enable or disable daily random hadith reminders in the server.")
+      .setDescription("Enable or disable periodic random hadith reminders in the server.")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
       .setDMPermission(false)
       .addBooleanOption((option) =>
         option
           .setName("enabled")
-          .setDescription("Set true to enable daily hadith reminders.")
+          .setDescription("Set true to enable hadith reminders.")
           .setRequired(true)
       )
       .addIntegerOption((option) =>
         option
-          .setName("hour")
-          .setDescription("Hour in 24h format (0-23).")
-          .setMinValue(0)
-          .setMaxValue(23)
-          .setRequired(false)
-      )
-      .addIntegerOption((option) =>
-        option
-          .setName("minute")
-          .setDescription("Minute (0-59).")
-          .setMinValue(0)
-          .setMaxValue(59)
+          .setName("interval_minutes")
+          .setDescription("Reminder interval in minutes (30-1440).")
+          .setMinValue(30)
+          .setMaxValue(1440)
           .setRequired(false)
       )
       .addStringOption(addHadithGradeOption)
@@ -273,7 +387,7 @@ function buildCommands() {
       .addStringOption(addContentLanguageOption),
     new SlashCommandBuilder()
       .setName("dm-hadith-reminders")
-      .setDescription("Enable or disable daily random hadith reminders in DM.")
+      .setDescription("Enable or disable periodic random hadith reminders in DM.")
       .setDMPermission(true)
       .addBooleanOption((option) =>
         option
@@ -283,18 +397,10 @@ function buildCommands() {
       )
       .addIntegerOption((option) =>
         option
-          .setName("hour")
-          .setDescription("Hour in 24h format (0-23).")
-          .setMinValue(0)
-          .setMaxValue(23)
-          .setRequired(false)
-      )
-      .addIntegerOption((option) =>
-        option
-          .setName("minute")
-          .setDescription("Minute (0-59).")
-          .setMinValue(0)
-          .setMaxValue(59)
+          .setName("interval_minutes")
+          .setDescription("Reminder interval in minutes (30-1440).")
+          .setMinValue(30)
+          .setMaxValue(1440)
           .setRequired(false)
       )
       .addStringOption(addHadithGradeOption)

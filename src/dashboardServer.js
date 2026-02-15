@@ -16,6 +16,7 @@ const {
   normalizeHadithGrade
 } = require("./islamicContentService");
 const { resolveCityCountryLocation } = require("./prayerTimesService");
+const { getEveryAyahReciters, getQaris, getSurahs } = require("./quranSources");
 
 if (!ChannelType || !PermissionsBitField?.Flags) {
   const version = discordJs?.version ? String(discordJs.version) : "unknown";
@@ -32,6 +33,14 @@ const RECENT_CONTENT_HISTORY_SIZE = 12;
 const DEFAULT_PRE_PRAYER_LEAD_MINUTES = 10;
 const PRE_PRAYER_LEAD_CHOICES = [5, 10, 15];
 const PRE_PRAYER_KEYS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+const QURAN_QARI_PRESETS = [
+  { id: 5, label: "Mishari Rashid al-`Afasy" },
+  { id: 7, label: "Abdur-Rahman as-Sudais" },
+  { id: 65, label: "Maher al-Muaiqly" },
+  { id: 14, label: "Abdul Baset Abdul Samad" },
+  { id: 10, label: "Mahmoud Khalil Al-Husary" },
+  { id: 6, label: "Sa`ud ash-Shuraym" }
+];
 const DASHBOARD_PRAYER_LABELS = {
   english: {
     fajr: "Fajr",
@@ -68,12 +77,18 @@ const DASHBOARD_I18N = {
     brandTitle: "Adhan Reminder",
     brandSubtitle: "Ramadan-themed control panel",
     inviteBot: "Invite Bot",
+    addAsApp: "Add as App",
     dashboard: "Dashboard",
     logout: "Logout",
     loginWithDiscord: "Login with Discord",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",
     footerRights: "All rights reserved.",
+    footerTeamCreditsLine: "Team Sandid — Credits: Idriss, Ayoub, Jimbe",
+    footerContactTitle: "Contact",
+    footerContactOwnerLabel: "Owner",
+    footerContactOwnerName: "Idriss",
+    footerContactEmailLabel: "Email",
     languageAriaLabel: "Dashboard language",
     themeAriaLabel: "Theme",
     themeLightLabel: "Light",
@@ -84,6 +99,9 @@ const DASHBOARD_I18N = {
     sectionPrePrayer: "Before Prayer",
     sectionAzkar: "Azkar",
     sectionHadith: "Hadith",
+    sectionQuranRadio: "Quran 24/7",
+    sectionQuranAyah: "Ayah Playback",
+    sectionLanguage: "Language",
     sectionReminders: "Reminders",
     sectionSchedule: "Schedule",
     sectionServers: "Servers",
@@ -91,9 +109,17 @@ const DASHBOARD_I18N = {
     sectionData: "Data Controls",
     homeTitle: "Prayer reminders, azkar, hadith, and voice adhan in one place",
     homeDescription:
-      "Configure everything from web: prayer location, channels, voice playback, role mentions, DM reminders, random azkar intervals, and daily hadith timing with grade filtering.",
+      "Configure everything from the web: prayer location, reminder channels, role mentions, pre-prayer alerts, azkar/hadith intervals with grade filtering, and Quran voice playback.",
     homePrimaryCtaOpen: "Open Dashboard",
     homePrimaryCtaSetup: "Login setup required",
+    featurePrayerTitle: "Prayer Times + Adhan",
+    featurePrayerDesc: "Prayer times by city/country with adhan reminders and optional pre-prayer alerts.",
+    featureRemindersTitle: "Azkar + Hadith Reminders",
+    featureRemindersDesc: "Interval-based azkar and hadith reminders, with a minimum hadith grade filter.",
+    featureVoiceTitle: "Voice Playback",
+    featureVoiceDesc: "Play adhan in a voice channel, or start Quran 24/7 / play a surah / play an ayah range.",
+    featureDashboardTitle: "Dashboard + Data Controls",
+    featureDashboardDesc: "Configure each server and your personal DM settings. Export or delete stored settings anytime.",
     featureGuildTitle: "Guild Controls",
     featureGuildDesc: "Set channels, voice adhan, mention role, and all reminder schedules per server.",
     featureDmTitle: "Personal DM Panel",
@@ -112,7 +138,7 @@ const DASHBOARD_I18N = {
     dmAzkarRemindersLabel: "DM Azkar Reminders",
     dmAzkarHint: "Uses interval below.",
     dmHadithRemindersLabel: "DM Hadith Reminders",
-    dmHadithHint: "Uses daily time below.",
+    dmHadithHint: "Uses the hadith interval below.",
     dmPrePrayerRemindersLabel: "DM Pre-Prayer Reminders",
     dmPrePrayerHint: "Sends a reminder before selected prayers.",
     globalLanguageLabel: "Language (Global)",
@@ -124,7 +150,9 @@ const DASHBOARD_I18N = {
     prayerAsrLabel: "Asr",
     prayerMaghribLabel: "Maghrib",
     prayerIshaLabel: "Isha",
-    azkarIntervalLabel: "Azkar Interval (minutes)",
+    azkarIntervalLabel: "Azkar Interval",
+    hadithIntervalLabel: "Hadith Interval",
+    intervalDailyOptionLabel: "Daily (use time below)",
     hadithHourLabel: "Hadith Hour",
     hadithMinuteLabel: "Hadith Minute",
     hadithGradeLabel: "Hadith Grade",
@@ -170,10 +198,31 @@ const DASHBOARD_I18N = {
     enablePrePrayerLabel: "Enable Pre-Prayer Reminders",
     azkarSectionTitle: "Azkar Reminders",
     enableAzkarLabel: "Enable Azkar Reminders",
-    intervalMinutesLabel: "Interval (minutes)",
+    intervalMinutesLabel: "Interval",
     hadithSectionTitle: "Hadith Reminders",
     enableHadithLabel: "Enable Hadith Reminders",
     minimumGradeLabel: "Minimum Grade",
+    quranRadioSectionTitle: "Quran 24/7 (Voice)",
+    quranRadioSectionDesc: "Continuous Quran recitation (surah order) using QuranicAudio full surah files.",
+    quranAyahSectionTitle: "Ayah Playback (Voice)",
+    quranAyahSectionDesc: "Play a specific surah and ayah range using the EveryAyah verse-by-verse dataset.",
+    enableQuranRadioLabel: "Enable Quran 24/7",
+    quranVoiceChannelLabel: "Quran Voice Channel",
+    quranReciterLabel: "Reciter (QuranicAudio)",
+    quranEveryAyahReciterLabel: "Ayah Reciter Key (EveryAyah)",
+    quranVolumeLabel: "Volume (0% - 100%)",
+    quranSurahLabel: "Surah",
+    quranAyahFromLabel: "From Ayah",
+    quranAyahToLabel: "To Ayah",
+    quranStatusLabel: "Quran Status",
+    quranStatusStopped: "Stopped",
+    quranStatusRadio: "Radio (24/7)",
+    quranStatusSurah: "Playing Surah",
+    quranStatusAyah: "Playing Ayah Range",
+    startRadioButton: "Start 24/7 Now",
+    stopRadioButton: "Stop Radio",
+    playSurahButton: "Play Surah Now",
+    playAyahButton: "Play Ayah Range Now",
     saveServerSettingsButton: "Save Server Settings",
     backToDashboardButton: "Back to Dashboard",
     optionNotSet: "Not set",
@@ -185,12 +234,18 @@ const DASHBOARD_I18N = {
     brandTitle: "منبه الأذان",
     brandSubtitle: "لوحة تحكم بطابع رمضاني",
     inviteBot: "دعوة البوت",
+    addAsApp: "إضافة كتطبيق",
     dashboard: "لوحة التحكم",
     logout: "تسجيل الخروج",
     loginWithDiscord: "تسجيل الدخول عبر ديسكورد",
     privacyPolicy: "سياسة الخصوصية",
     termsOfService: "شروط الخدمة",
     footerRights: "جميع الحقوق محفوظة.",
+    footerTeamCreditsLine: "فريق سانديد — الشكر: إدريس، أيوب، جيمبي",
+    footerContactTitle: "تواصل",
+    footerContactOwnerLabel: "المالك",
+    footerContactOwnerName: "إدريس",
+    footerContactEmailLabel: "البريد",
     languageAriaLabel: "لغة لوحة التحكم",
     themeAriaLabel: "المظهر",
     themeLightLabel: "فاتح",
@@ -201,6 +256,9 @@ const DASHBOARD_I18N = {
     sectionPrePrayer: "قبل الصلاة",
     sectionAzkar: "الأذكار",
     sectionHadith: "الأحاديث",
+    sectionQuranRadio: "القرآن 24/7",
+    sectionQuranAyah: "تشغيل الآيات",
+    sectionLanguage: "اللغة",
     sectionReminders: "التذكيرات",
     sectionSchedule: "الجدول",
     sectionServers: "السيرفرات",
@@ -208,9 +266,17 @@ const DASHBOARD_I18N = {
     sectionData: "البيانات",
     homeTitle: "تنبيهات الصلاة والأذكار والأحاديث والأذان الصوتي في مكان واحد",
     homeDescription:
-      "اضبط كل شيء من الويب: موقع الصلاة، القنوات، تشغيل الصوت، رتبة المنشن، تذكيرات الخاص، فواصل الأذكار العشوائية، ووقت الحديث اليومي مع فلتر الدرجة.",
+      "اضبط كل شيء من الويب: موقع الصلاة، قنوات التذكير، رتبة المنشن، تنبيهات قبل الصلاة، فواصل الأذكار والأحاديث مع فلتر الدرجة، وتشغيل القرآن بالصوت.",
     homePrimaryCtaOpen: "فتح لوحة التحكم",
     homePrimaryCtaSetup: "يلزم إعداد تسجيل الدخول",
+    featurePrayerTitle: "مواقيت الصلاة والأذان",
+    featurePrayerDesc: "مواقيت حسب المدينة/الدولة مع تنبيهات الأذان وتنبيهات قبل الصلاة اختيارياً.",
+    featureRemindersTitle: "الأذكار والأحاديث",
+    featureRemindersDesc: "تذكيرات بفاصل زمني للأذكار والأحاديث، مع فلتر أدنى درجة للحديث.",
+    featureVoiceTitle: "التشغيل الصوتي",
+    featureVoiceDesc: "تشغيل الأذان في قناة صوتية، أو تشغيل القرآن 24/7 / سورة كاملة / نطاق آيات.",
+    featureDashboardTitle: "لوحة التحكم والبيانات",
+    featureDashboardDesc: "إعدادات لكل سيرفر وإعدادات الخاص. تصدير أو حذف بيانات الإعدادات في أي وقت.",
     featureGuildTitle: "تحكم السيرفر",
     featureGuildDesc: "اضبط القنوات، الأذان الصوتي، رتبة المنشن، وجميع جداول التذكير لكل سيرفر.",
     featureDmTitle: "لوحة الرسائل الخاصة",
@@ -229,9 +295,11 @@ const DASHBOARD_I18N = {
     dmAzkarRemindersLabel: "تذكيرات الأذكار في الخاص",
     dmAzkarHint: "يستخدم الفاصل الزمني أدناه.",
     dmHadithRemindersLabel: "تذكيرات الأحاديث في الخاص",
-    dmHadithHint: "يستخدم الوقت اليومي أدناه.",
+    dmHadithHint: "يستخدم فاصل الحديث بالأسفل.",
     globalLanguageLabel: "اللغة (العامة)",
-    azkarIntervalLabel: "فاصل الأذكار (دقيقة)",
+    azkarIntervalLabel: "فاصل الأذكار",
+    hadithIntervalLabel: "فاصل الحديث",
+    intervalDailyOptionLabel: "يوميًا (استخدم الوقت أدناه)",
     hadithHourLabel: "ساعة الحديث",
     hadithMinuteLabel: "دقيقة الحديث",
     hadithGradeLabel: "درجة الحديث",
@@ -264,10 +332,31 @@ const DASHBOARD_I18N = {
     playAdhanVoiceLabel: "تشغيل الأذان في القناة الصوتية",
     azkarSectionTitle: "تذكيرات الأذكار",
     enableAzkarLabel: "تفعيل تذكيرات الأذكار",
-    intervalMinutesLabel: "الفاصل (دقيقة)",
+    intervalMinutesLabel: "الفاصل",
     hadithSectionTitle: "تذكيرات الأحاديث",
     enableHadithLabel: "تفعيل تذكيرات الأحاديث",
     minimumGradeLabel: "أدنى درجة",
+    quranRadioSectionTitle: "القرآن 24/7 (صوت)",
+    quranRadioSectionDesc: "تلاوة مستمرة (حسب ترتيب المصحف) باستخدام ملفات السور الكاملة من QuranicAudio.",
+    quranAyahSectionTitle: "تشغيل الآيات (صوت)",
+    quranAyahSectionDesc: "تشغيل سورة ونطاق آيات باستخدام مكتبة EveryAyah آية بآية.",
+    enableQuranRadioLabel: "تفعيل القرآن 24/7",
+    quranVoiceChannelLabel: "قناة القرآن الصوتية",
+    quranReciterLabel: "القارئ (QuranicAudio)",
+    quranEveryAyahReciterLabel: "مفتاح القارئ (EveryAyah)",
+    quranVolumeLabel: "الصوت (0% - 100%)",
+    quranSurahLabel: "السورة",
+    quranAyahFromLabel: "من آية",
+    quranAyahToLabel: "إلى آية",
+    quranStatusLabel: "حالة القرآن",
+    quranStatusStopped: "متوقف",
+    quranStatusRadio: "مستمر (24/7)",
+    quranStatusSurah: "تشغيل سورة",
+    quranStatusAyah: "تشغيل نطاق آيات",
+    startRadioButton: "تشغيل 24/7 الآن",
+    stopRadioButton: "إيقاف",
+    playSurahButton: "تشغيل السورة الآن",
+    playAyahButton: "تشغيل الآيات الآن",
     saveServerSettingsButton: "حفظ إعدادات السيرفر",
     backToDashboardButton: "العودة إلى لوحة التحكم",
     optionNotSet: "غير مضبوط",
@@ -367,6 +456,99 @@ function normalizeDashboardTheme(value) {
   return String(value || "dark").trim().toLowerCase() === "light" ? "light" : "dark";
 }
 
+const DASHBOARD_PROFILE_SECTION_KEYS = [
+  "servers",
+  "dm-location",
+  "dm-language",
+  "dm-reminders",
+  "dm-schedule",
+  "dm-instant",
+  "dm-data"
+];
+function normalizeDashboardProfileSection(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return DASHBOARD_PROFILE_SECTION_KEYS.includes(normalized) ? normalized : "servers";
+}
+
+const DASHBOARD_GUILD_SECTION_KEYS = [
+  "quran-radio",
+  "quran-ayah",
+  "language",
+  "location",
+  "channels",
+  "preprayer",
+  "azkar",
+  "hadith",
+  "instant",
+  "data"
+];
+function normalizeDashboardGuildSection(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "quran") return "quran-radio";
+  return DASHBOARD_GUILD_SECTION_KEYS.includes(normalized) ? normalized : "location";
+}
+
+const REMINDER_INTERVAL_CHOICES_MINUTES = [30, 45, 60, 90, 120, 180, 360];
+function reminderIntervalChoiceLabel(minutesValue, dashboardLanguage) {
+  const minutes = Number(minutesValue);
+  const normalized = normalizeDashboardLanguage(dashboardLanguage);
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return normalized === "arabic" ? "افتراضي" : "Default";
+  }
+
+  if (normalized === "arabic") {
+    if (minutes < 60) return `${minutes} دقيقة`;
+    if (minutes === 60) return "ساعة";
+    if (minutes === 90) return "ساعة ونصف";
+    if (minutes === 120) return "ساعتان";
+    return `${minutes / 60} ساعات`;
+  }
+
+  if (minutes < 60) return `${minutes} minutes`;
+  if (minutes === 60) return "1 hour";
+  if (minutes === 90) return "1 hour 30 minutes";
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  return `${minutes} minutes`;
+}
+
+function reminderIntervalOptions(selectedValue, dashboardLanguage) {
+  const selected = Number(selectedValue);
+  const selectedIsValid = Number.isFinite(selected);
+  return REMINDER_INTERVAL_CHOICES_MINUTES.map((minutes) =>
+    optionTag({
+      value: minutes,
+      label: reminderIntervalChoiceLabel(minutes, dashboardLanguage),
+      selected: selectedIsValid ? selected === minutes : minutes === 180
+    })
+  ).join("");
+}
+
+function parseOptionalIntervalMinutes(value, fallbackValue = null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return fallbackValue;
+  }
+  return Math.min(1440, Math.max(30, Math.round(parsed)));
+}
+
+function hasValidLocation(config) {
+  const location = config?.location;
+  return (
+    location &&
+    typeof location.timezone === "string" &&
+    location.timezone.trim().length > 0 &&
+    ((typeof location.city === "string" &&
+      location.city.trim().length > 0 &&
+      typeof location.country === "string" &&
+      location.country.trim().length > 0) ||
+      (typeof location.latitude === "number" && typeof location.longitude === "number"))
+  );
+}
+
 function getDashboardI18n(language) {
   const normalized = normalizeDashboardLanguage(language);
   return {
@@ -416,6 +598,16 @@ function parseBoundedInt(value, fallback, min, max) {
     return fallback;
   }
   return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function normalizeVolume01FromPercent(value, fallback = 0.35) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(0, Math.min(1, Number(fallback) || 0.35));
+  }
+  // Backwards compat: old UI submitted 0.0-1.0, new slider submits 0-100.
+  const normalized = parsed > 1 ? parsed / 100 : parsed;
+  return Math.max(0, Math.min(1, normalized));
 }
 
 function normalizePrePrayerLeadMinutes(value, fallback = DEFAULT_PRE_PRAYER_LEAD_MINUTES) {
@@ -482,7 +674,7 @@ function reminderContentCopy(language) {
 function buildAzkarReminderContent(entry, language) {
   const copy = reminderContentCopy(language);
   const text = getEntryTextByLanguage(entry, language);
-  return `✨ **${copy.azkarTitle}**\n## ✨ ${text} ✨\n> 📖 **${copy.sourceLabel}:** ${entry.source}`;
+  return `## ✨ ${text} ✨\n> 📖 **${copy.sourceLabel}:** ${entry.source}`;
 }
 
 function buildHadithReminderContent(entry, language) {
@@ -596,6 +788,18 @@ function inviteUrl({ clientId, permissions, guildId }) {
     endpoint.searchParams.set("guild_id", guildId);
     endpoint.searchParams.set("disable_guild_select", "true");
   }
+  return endpoint.toString();
+}
+
+function addAsAppUrl({ clientId }) {
+  if (!clientId) {
+    return "#";
+  }
+  const endpoint = new URL("https://discord.com/api/oauth2/authorize");
+  endpoint.searchParams.set("client_id", clientId);
+  // "Add as App" = install app commands to the user (Discord's user install flow).
+  endpoint.searchParams.set("scope", "applications.commands");
+  endpoint.searchParams.set("integration_type", "1");
   return endpoint.toString();
 }
 
@@ -760,6 +964,7 @@ function renderLayout({
   content,
   user,
   inviteUrlValue,
+  addAsAppUrlValue,
   flash,
   dashboardLanguage,
   dashboardTheme = "dark",
@@ -822,12 +1027,24 @@ function renderLayout({
   const flashHtml = flash ? `<div class="flash ${escapeHtml(flash.type)}">${escapeHtml(flash.text)}</div>` : "";
   const footerHtml = `
     <footer class="wrap footer">
-      <div class="footer-links">
-        <a href="/privacy">${escapeHtml(i18n.privacyPolicy)}</a>
-        <span aria-hidden="true">•</span>
-        <a href="/terms">${escapeHtml(i18n.termsOfService)}</a>
+      <div class="footer-grid">
+        <div class="footer-links">
+          <a href="/privacy">${escapeHtml(i18n.privacyPolicy)}</a>
+          <span aria-hidden="true">•</span>
+          <a href="/terms">${escapeHtml(i18n.termsOfService)}</a>
+        </div>
+        <div class="footer-card" aria-label="${escapeHtml(i18n.footerContactTitle)}">
+          <div class="footer-card-title">${escapeHtml(i18n.footerContactTitle)}</div>
+          <div class="footer-card-body">
+            <div><strong>${escapeHtml(i18n.footerContactOwnerLabel)}:</strong> ${escapeHtml(i18n.footerContactOwnerName)}</div>
+            <div><strong>${escapeHtml(i18n.footerContactEmailLabel)}:</strong> <a href="mailto:idriss.zaghez@gmail.com">idriss.zaghez@gmail.com</a></div>
+          </div>
+        </div>
       </div>
-      <p>© ${new Date().getFullYear()} ${escapeHtml(i18n.brandTitle)}. ${escapeHtml(i18n.footerRights)}</p>
+      <div class="footer-meta">
+        <p>© ${new Date().getFullYear()} ${escapeHtml(i18n.brandTitle)}. ${escapeHtml(i18n.footerRights)}</p>
+        <p>${escapeHtml(i18n.footerTeamCreditsLine)}</p>
+      </div>
     </footer>
   `;
 
@@ -902,8 +1119,9 @@ function renderLayout({
       --btn-soft-text:#1b232c;
     }
     * { box-sizing:border-box; }
-    body { margin:0; color:var(--text); font-family:var(--font-sans); background:var(--bg-a),var(--bg-b),var(--bg-c),var(--bg-d, none); min-height:100vh; }
+    body { margin:0; color:var(--text); font-family:var(--font-sans); background:var(--bg-a),var(--bg-b),var(--bg-c),var(--bg-d, none); min-height:100vh; display:flex; flex-direction:column; }
     .wrap { width:min(1100px,94vw); margin:0 auto; }
+    main { flex:1; }
     .topbar { display:flex; justify-content:space-between; gap:12px; padding:20px 0; align-items:center; }
     .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
     .brand-icon { width:44px; height:44px; border-radius:999px; border:1px solid rgba(230,207,139,.62); box-shadow:0 0 0 3px var(--brand-ring); background:var(--brand-bg); object-fit:cover; }
@@ -931,13 +1149,12 @@ function renderLayout({
     .feature p { margin:0; color:var(--muted); font-size:.93rem; }
     .stack { display:grid; gap:12px; }
     .settings-shell { display:grid; gap:14px; grid-template-columns:250px 1fr; align-items:start; }
-    [dir="rtl"] .settings-shell { grid-template-columns:1fr 250px; }
-    [dir="rtl"] .settings-nav { grid-column:2; }
-    [dir="rtl"] .settings-main { grid-column:1; }
     .settings-nav { position:sticky; top:14px; align-self:start; background:var(--card-2); border:1px solid rgba(230,207,139,.16); border-radius:18px; padding:12px; }
     .settings-nav-title { font:800 1.05rem var(--font-serif); color:var(--gold-2); margin:0 0 10px; }
     .settings-nav a { display:block; padding:9px 10px; border-radius:14px; text-decoration:none; color:var(--text); font-weight:800; border:1px solid transparent; }
+    [dir="rtl"] .settings-nav a { text-align:right; }
     .settings-nav a:hover { background:var(--field-2); border-color:var(--border); }
+    .settings-nav a.active { background:var(--field); border-color:rgba(230,207,139,.55); box-shadow:0 0 0 1px rgba(230,207,139,.2) inset; }
     .settings-nav a.muted { color:var(--muted); font-weight:700; }
     .settings-main { min-width:0; }
     .settings-anchor { scroll-margin-top:90px; }
@@ -952,6 +1169,11 @@ function renderLayout({
     .field span { font-size:.85rem; font-weight:700; }
     .field input,.field select { border-radius:12px; border:1px solid var(--border-2); background:var(--field); color:var(--text); padding:10px 12px; font:600 .92rem var(--font-sans); }
     .field input:focus,.field select:focus { outline:3px solid rgba(230,207,139,.25); outline-offset:2px; }
+    .range-row { display:flex; gap:10px; align-items:center; }
+    [dir="rtl"] .range-row { flex-direction:row-reverse; }
+    .range { width:100%; accent-color:var(--gold-2); }
+    .range-out { font-weight:800; color:var(--gold-2); min-width:64px; text-align:right; }
+    [dir="rtl"] .range-out { text-align:left; }
     .check-row { display:flex; gap:10px; border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--field-2); }
     .check-row small { color:var(--muted); }
     .prayer-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
@@ -961,11 +1183,19 @@ function renderLayout({
     .flash { width:min(1100px,94vw); margin:0 auto 12px; border-radius:12px; padding:10px 14px; font-weight:800; }
     .flash.success { background:rgba(94,196,168,.22); color:var(--text); border:1px solid rgba(94,196,168,.5); }
     .flash.error { background:rgba(255,159,137,.2); color:var(--text); border:1px solid rgba(255,159,137,.55); }
-    .footer { margin:22px auto 26px; text-align:center; color:var(--muted-2); font-size:.9rem; }
+    .footer { margin:22px auto 26px; margin-top:auto; text-align:center; color:var(--muted-2); font-size:.9rem; }
     .footer p { margin:8px 0 0; color:var(--muted); }
+    .footer-grid { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
     .footer-links { display:inline-flex; gap:10px; align-items:center; }
     .footer-links a { color:var(--gold-2); text-decoration:none; }
     .footer-links a:hover { text-decoration:underline; }
+    .footer-card { text-align:left; background:var(--card-2); border:1px solid rgba(230,207,139,.16); border-radius:16px; padding:12px 14px; min-width:min(420px, 100%); }
+    [dir="rtl"] .footer-card { text-align:right; }
+    .footer-card-title { font:800 1rem var(--font-serif); color:var(--gold-2); margin:0 0 8px; }
+    .footer-card-body { display:grid; gap:6px; color:var(--muted); }
+    .footer-card-body a { color:var(--gold-2); text-decoration:none; }
+    .footer-card-body a:hover { text-decoration:underline; }
+    .footer-meta { margin-top:10px; }
 
     .switch { position:relative; display:inline-flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--field-2); cursor:pointer; user-select:none; }
     .switch input { position:absolute; opacity:0; width:1px; height:1px; }
@@ -996,6 +1226,7 @@ function renderLayout({
       ${languageSwitcher}
       ${themeSwitcher}
       ${userBadge}
+      <a class="btn btn-soft" href="${escapeHtml(addAsAppUrlValue || "#")}">${escapeHtml(i18n.addAsApp)}</a>
       <a class="btn btn-primary" href="${escapeHtml(inviteUrlValue)}">${escapeHtml(i18n.inviteBot)}</a>
       ${authActions}
     </div>
@@ -1106,8 +1337,9 @@ function requireAuth(req, res, next) {
   next();
 }
 
-function buildHomeContent({ oauthEnabled, dashboardLanguage }) {
+function buildHomeContent({ oauthEnabled, dashboardLanguage, user }) {
   const i18n = getDashboardI18n(dashboardLanguage);
+  const ctaHref = user ? "/dashboard" : "/auth/discord";
   return `
     <section class="card hero">
       <h1>${escapeHtml(i18n.homeTitle)}</h1>
@@ -1115,19 +1347,22 @@ function buildHomeContent({ oauthEnabled, dashboardLanguage }) {
         ${escapeHtml(i18n.homeDescription)}
       </p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="/auth/discord">${escapeHtml(
+        <a class="btn btn-primary" href="${escapeHtml(ctaHref)}">${escapeHtml(
           oauthEnabled ? i18n.homePrimaryCtaOpen : i18n.homePrimaryCtaSetup
         )}</a>
       </div>
       <div class="features">
-        <article class="feature"><h3>${escapeHtml(i18n.featureGuildTitle)}</h3><p>${escapeHtml(
-          i18n.featureGuildDesc
+        <article class="feature"><h3>${escapeHtml(i18n.featurePrayerTitle)}</h3><p>${escapeHtml(
+          i18n.featurePrayerDesc
         )}</p></article>
-        <article class="feature"><h3>${escapeHtml(i18n.featureDmTitle)}</h3><p>${escapeHtml(
-          i18n.featureDmDesc
+        <article class="feature"><h3>${escapeHtml(i18n.featureRemindersTitle)}</h3><p>${escapeHtml(
+          i18n.featureRemindersDesc
         )}</p></article>
-        <article class="feature"><h3>${escapeHtml(i18n.featureStyleTitle)}</h3><p>${escapeHtml(
-          i18n.featureStyleDesc
+        <article class="feature"><h3>${escapeHtml(i18n.featureVoiceTitle)}</h3><p>${escapeHtml(
+          i18n.featureVoiceDesc
+        )}</p></article>
+        <article class="feature"><h3>${escapeHtml(i18n.featureDashboardTitle)}</h3><p>${escapeHtml(
+          i18n.featureDashboardDesc
         )}</p></article>
       </div>
     </section>
@@ -1154,9 +1389,16 @@ function renderGuildListSection({ title, items, emptyMessage, makeAction, idLabe
   return `<section class="card"><h2 class="section-title">${escapeHtml(title)}</h2><div class="guild-list">${rows}</div></section>`;
 }
 
-function renderDashboardPage({ userConfig, manageableGuilds, inviteOnlyGuilds, csrfToken, dashboardLanguage }) {
+function renderDashboardPage({
+  userConfig,
+  manageableGuilds,
+  inviteOnlyGuilds,
+  csrfToken,
+  dashboardLanguage,
+  activeSection
+}) {
   const i18n = getDashboardI18n(dashboardLanguage);
-  const dmHadithTime = splitTimeForForm(userConfig.dmHadithReminderTime);
+  const section = normalizeDashboardProfileSection(activeSection);
   const dmPrePrayerLeadOptionTags = prePrayerLeadOptions(userConfig.dmPrePrayerLeadMinutes, dashboardLanguage, i18n);
   const dmPrePrayerSelectionHtml = prePrayerSelectionGrid({
     prefix: "dmPrePrayer_",
@@ -1166,6 +1408,14 @@ function renderDashboardPage({ userConfig, manageableGuilds, inviteOnlyGuilds, c
   });
   const dmLanguageOptions = contentLanguageOptions(
     userConfig.language || userConfig.dmAzkarLanguage || userConfig.dmHadithLanguage,
+    dashboardLanguage
+  );
+  const dmAzkarIntervalOptionTags = reminderIntervalOptions(
+    userConfig.dmAzkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
+    dashboardLanguage
+  );
+  const dmHadithIntervalOptionTags = reminderIntervalOptions(
+    userConfig.dmHadithIntervalMinutes ?? 360,
     dashboardLanguage
   );
   const methodOptions = METHOD_CHOICES.map((choice) =>
@@ -1190,174 +1440,244 @@ function renderDashboardPage({ userConfig, manageableGuilds, inviteOnlyGuilds, c
     })
   ).join("");
 
+  const sectionNavLink = ({ key, label, muted = false }) => {
+    const classes = ["", muted ? "muted" : "", section === key ? "active" : ""].filter(Boolean).join(" ");
+    return `<a class="${escapeHtml(classes)}" href="/dashboard?section=${escapeHtml(key)}">${escapeHtml(label)}</a>`;
+  };
+
+  const sectionNav = `
+    <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
+      <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
+      ${sectionNavLink({ key: "servers", label: i18n.sectionServers })}
+      ${sectionNavLink({ key: "dm-location", label: i18n.sectionLocation })}
+      ${sectionNavLink({ key: "dm-language", label: i18n.sectionLanguage })}
+      ${sectionNavLink({ key: "dm-reminders", label: i18n.sectionReminders })}
+      ${sectionNavLink({ key: "dm-schedule", label: i18n.sectionSchedule })}
+      ${sectionNavLink({ key: "dm-instant", label: i18n.sectionInstant, muted: true })}
+      ${sectionNavLink({ key: "dm-data", label: i18n.sectionData, muted: true })}
+    </aside>
+  `;
+
+  const serversPanel = `
+    <div class="grid-2 settings-anchor">
+      ${renderGuildListSection({
+        title: i18n.serversConfigurableTitle,
+        items: manageableGuilds,
+        emptyMessage: i18n.serversConfigurableEmpty,
+        idLabel: i18n.idLabel,
+        makeAction: (guild) =>
+          `<a class="btn btn-soft" href="/dashboard/guild/${escapeHtml(guild.id)}">${escapeHtml(i18n.configureButton)}</a>`
+      })}
+      ${renderGuildListSection({
+        title: i18n.serversInviteTitle,
+        items: inviteOnlyGuilds,
+        emptyMessage: i18n.serversInviteEmpty,
+        idLabel: i18n.idLabel,
+        makeAction: (guild) =>
+          `<a class="btn btn-ghost" href="${escapeHtml(guild.inviteUrl)}">${escapeHtml(i18n.inviteHereButton)}</a>`
+      })}
+    </div>
+  `;
+
+  const dmLocationPanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionLocation)}</h2>
+      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+      <form method="post" action="/dashboard/profile">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="dm-location" />
+        <div class="form-grid">
+          ${settingsInputRow({
+            label: i18n.cityLabel,
+            name: "city",
+            value: userConfig.location?.city || "",
+            placeholder: i18n.cityPlaceholder,
+            required: true
+          })}
+          ${settingsInputRow({
+            label: i18n.countryLabel,
+            name: "country",
+            value: userConfig.location?.country || "",
+            placeholder: i18n.countryPlaceholder,
+            required: true
+          })}
+          <label class="field"><span>${escapeHtml(i18n.methodLabel)}</span><select name="method">${methodOptions}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
+        </div>
+        <div class="sticky-actions">
+          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const dmLanguagePanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionLanguage)}</h2>
+      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+      <form method="post" action="/dashboard/profile">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="dm-language" />
+        <div class="form-grid">
+          <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${dmLanguageOptions}</select></label>
+        </div>
+        <div class="sticky-actions">
+          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const dmRemindersPanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionReminders)}</h2>
+      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+      <form method="post" action="/dashboard/profile">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="dm-reminders" />
+        <div class="stack" style="margin-top:10px;">
+          ${checkboxRow({
+            label: i18n.dmPrayerRemindersLabel,
+            name: "dmRemindersEnabled",
+            checked: userConfig.dmRemindersEnabled
+          })}
+          ${checkboxRow({
+            label: i18n.dmPrePrayerRemindersLabel,
+            name: "dmPrePrayerRemindersEnabled",
+            checked: userConfig.dmPrePrayerRemindersEnabled,
+            hint: i18n.dmPrePrayerHint
+          })}
+          ${checkboxRow({
+            label: i18n.dmAzkarRemindersLabel,
+            name: "dmAzkarRemindersEnabled",
+            checked: userConfig.dmAzkarRemindersEnabled,
+            hint: i18n.dmAzkarHint
+          })}
+          ${checkboxRow({
+            label: i18n.dmHadithRemindersLabel,
+            name: "dmHadithRemindersEnabled",
+            checked: userConfig.dmHadithRemindersEnabled,
+            hint: i18n.dmHadithHint
+          })}
+        </div>
+        <div class="sticky-actions">
+          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const dmSchedulePanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionSchedule)}</h2>
+      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+      <form method="post" action="/dashboard/profile">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="dm-schedule" />
+        <div class="form-grid">
+          <label class="field"><span>${escapeHtml(i18n.prePrayerLeadLabel)}</span><select name="dmPrePrayerLeadMinutes">${dmPrePrayerLeadOptionTags}</select></label>
+          <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${dmPrePrayerSelectionHtml}</label>
+          <label class="field"><span>${escapeHtml(i18n.azkarIntervalLabel)}</span><select name="dmAzkarIntervalMinutes">${dmAzkarIntervalOptionTags}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.hadithIntervalLabel)}</span><select name="dmHadithIntervalMinutes">${dmHadithIntervalOptionTags}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.hadithGradeLabel)}</span><select name="dmHadithMinGrade">${hadithGradeOptions}</select></label>
+        </div>
+        <div class="sticky-actions">
+          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const dmInstantPanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionInstant)}</h2>
+      <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+      <div class="form-actions" style="margin-top:12px;">
+        <form method="post" action="/dashboard/profile/instant-azkar" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-soft" type="submit">${escapeHtml(i18n.sendNowAzkarDmButton)}</button>
+        </form>
+        <form method="post" action="/dashboard/profile/instant-hadith" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithDmButton)}</button>
+        </form>
+      </div>
+    </section>
+  `;
+
+  const dmDataPanel = `
+    <section class="card">
+      <h2 class="section-title">${escapeHtml(i18n.sectionData)}</h2>
+      <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
+      <div class="form-actions" style="margin-top:12px;">
+        <a class="btn btn-soft" href="/dashboard/profile/export">${escapeHtml(i18n.exportDataButton)}</a>
+        <form method="post" action="/dashboard/profile/delete-data" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <input
+            name="confirm"
+            placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
+            aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
+            pattern="DELETE"
+            required
+            style="max-width:220px;"
+          />
+          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteDataButton)}</button>
+        </form>
+      </div>
+    </section>
+  `;
+
+  const activePanel =
+    section === "servers"
+      ? serversPanel
+      : section === "dm-location"
+        ? dmLocationPanel
+        : section === "dm-language"
+          ? dmLanguagePanel
+        : section === "dm-reminders"
+          ? dmRemindersPanel
+          : section === "dm-schedule"
+            ? dmSchedulePanel
+            : section === "dm-instant"
+              ? dmInstantPanel
+              : dmDataPanel;
+
+  const dmScopeBanner =
+    section === "servers"
+      ? ""
+      : `
+        <section class="card">
+          <h2 class="section-title">${escapeHtml(i18n.personalDmSettingsTitle)}</h2>
+          <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
+        </section>
+      `;
+
   return `
     <div class="settings-shell">
-      <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
-        <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
-        <a href="#dm-location">${escapeHtml(i18n.sectionLocation)}</a>
-        <a href="#dm-reminders">${escapeHtml(i18n.sectionReminders)}</a>
-        <a href="#dm-schedule">${escapeHtml(i18n.sectionSchedule)}</a>
-        <a class="muted" href="#dm-instant">${escapeHtml(i18n.sectionInstant)}</a>
-        <a class="muted" href="#dm-data">${escapeHtml(i18n.sectionData)}</a>
-        <a href="#dashboard-servers">${escapeHtml(i18n.sectionServers)}</a>
-      </aside>
+      ${sectionNav}
       <div class="settings-main">
-        <div class="stack">
-          <section class="card">
-            <h2 class="section-title">${escapeHtml(i18n.personalDmSettingsTitle)}</h2>
-            <p class="subtle">${escapeHtml(i18n.personalDmSettingsDesc)}</p>
-            <form method="post" action="/dashboard/profile">
-              <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-              <h3 id="dm-location" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-                i18n.sectionLocation
-              )}</h3>
-              <div class="form-grid">
-                ${settingsInputRow({
-                  label: i18n.cityLabel,
-                  name: "city",
-                  value: userConfig.location?.city || "",
-                  placeholder: i18n.cityPlaceholder,
-                  required: true
-                })}
-                ${settingsInputRow({
-                  label: i18n.countryLabel,
-                  name: "country",
-                  value: userConfig.location?.country || "",
-                  placeholder: i18n.countryPlaceholder,
-                  required: true
-                })}
-                <label class="field"><span>${escapeHtml(i18n.methodLabel)}</span><select name="method">${methodOptions}</select></label>
-                <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
-              </div>
-
-              <h3 id="dm-reminders" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-                i18n.sectionReminders
-              )}</h3>
-              <div class="stack" style="margin-top:10px;">
-                ${checkboxRow({
-                  label: i18n.dmPrayerRemindersLabel,
-                  name: "dmRemindersEnabled",
-                  checked: userConfig.dmRemindersEnabled
-                })}
-                ${checkboxRow({
-                  label: i18n.dmPrePrayerRemindersLabel,
-                  name: "dmPrePrayerRemindersEnabled",
-                  checked: userConfig.dmPrePrayerRemindersEnabled,
-                  hint: i18n.dmPrePrayerHint
-                })}
-                ${checkboxRow({
-                  label: i18n.dmAzkarRemindersLabel,
-                  name: "dmAzkarRemindersEnabled",
-                  checked: userConfig.dmAzkarRemindersEnabled,
-                  hint: i18n.dmAzkarHint
-                })}
-                ${checkboxRow({
-                  label: i18n.dmHadithRemindersLabel,
-                  name: "dmHadithRemindersEnabled",
-                  checked: userConfig.dmHadithRemindersEnabled,
-                  hint: i18n.dmHadithHint
-                })}
-              </div>
-
-              <h3 id="dm-schedule" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-                i18n.sectionSchedule
-              )}</h3>
-              <div class="form-grid" style="margin-top:10px;">
-                <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${dmLanguageOptions}</select></label>
-                <label class="field"><span>${escapeHtml(i18n.prePrayerLeadLabel)}</span><select name="dmPrePrayerLeadMinutes">${dmPrePrayerLeadOptionTags}</select></label>
-                <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${dmPrePrayerSelectionHtml}</label>
-                ${settingsInputRow({
-                  label: i18n.azkarIntervalLabel,
-                  name: "dmAzkarIntervalMinutes",
-                  value: userConfig.dmAzkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
-                  type: "number",
-                  min: 30,
-                  max: 1440
-                })}
-                ${settingsInputRow({
-                  label: i18n.hadithHourLabel,
-                  name: "dmHadithHour",
-                  value: dmHadithTime.hour,
-                  type: "number",
-                  min: 0,
-                  max: 23
-                })}
-                ${settingsInputRow({
-                  label: i18n.hadithMinuteLabel,
-                  name: "dmHadithMinute",
-                  value: dmHadithTime.minute,
-                  type: "number",
-                  min: 0,
-                  max: 59
-                })}
-                <label class="field"><span>${escapeHtml(i18n.hadithGradeLabel)}</span><select name="dmHadithMinGrade">${hadithGradeOptions}</select></label>
-              </div>
-              <div class="sticky-actions">
-                <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveDmSettingsButton)}</button>
-              </div>
-            </form>
-
-            <h3 id="dm-instant" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-              i18n.instantActionsTitle
-            )}</h3>
-            <div class="form-actions">
-              <form method="post" action="/dashboard/profile/instant-azkar" class="inline-form">
-                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-                <button class="btn btn-soft" type="submit">${escapeHtml(i18n.sendNowAzkarDmButton)}</button>
-              </form>
-              <form method="post" action="/dashboard/profile/instant-hadith" class="inline-form">
-                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-                <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithDmButton)}</button>
-              </form>
-            </div>
-
-            <h3 id="dm-data" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-              i18n.dataRightsTitle
-            )}</h3>
-            <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
-            <div class="form-actions">
-              <a class="btn btn-soft" href="/dashboard/profile/export">${escapeHtml(i18n.exportDataButton)}</a>
-              <form method="post" action="/dashboard/profile/delete-data" class="inline-form">
-                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-                <input
-                  name="confirm"
-                  placeholder="${escapeHtml(i18n.deleteConfirmPlaceholder)}"
-                  aria-label="${escapeHtml(i18n.deleteConfirmLabel)}"
-                  pattern="DELETE"
-                  required
-                  style="max-width:220px;"
-                />
-                <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteDataButton)}</button>
-              </form>
-            </div>
-          </section>
-          <div id="dashboard-servers" class="grid-2 settings-anchor">
-            ${renderGuildListSection({
-              title: i18n.serversConfigurableTitle,
-              items: manageableGuilds,
-              emptyMessage: i18n.serversConfigurableEmpty,
-              idLabel: i18n.idLabel,
-              makeAction: (guild) =>
-                `<a class="btn btn-soft" href="/dashboard/guild/${escapeHtml(guild.id)}">${escapeHtml(i18n.configureButton)}</a>`
-            })}
-            ${renderGuildListSection({
-              title: i18n.serversInviteTitle,
-              items: inviteOnlyGuilds,
-              emptyMessage: i18n.serversInviteEmpty,
-              idLabel: i18n.idLabel,
-              makeAction: (guild) =>
-                `<a class="btn btn-ghost" href="${escapeHtml(guild.inviteUrl)}">${escapeHtml(i18n.inviteHereButton)}</a>`
-            })}
-          </div>
-        </div>
+        <div class="stack">${dmScopeBanner}${activePanel}</div>
       </div>
     </div>
   `;
 }
 
-function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChannels, roles, csrfToken, dashboardLanguage }) {
+function renderGuildSettingsPage({
+  guild,
+  guildConfig,
+  textChannels,
+  voiceChannels,
+  roles,
+  csrfToken,
+  dashboardLanguage,
+  activeSection,
+  quranStatus,
+  quranSurahs,
+  quranEveryAyahReciters,
+  quranQaris
+}) {
   const i18n = getDashboardI18n(dashboardLanguage);
-  const hadithTime = splitTimeForForm(guildConfig.hadithReminderTime);
+  const section = normalizeDashboardGuildSection(activeSection);
   const prePrayerLeadOptionTags = prePrayerLeadOptions(guildConfig.prePrayerLeadMinutes, dashboardLanguage, i18n);
   const prePrayerSelectionHtml = prePrayerSelectionGrid({
     prefix: "prePrayer_",
@@ -1405,6 +1725,17 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
       )
     )
     .join("");
+  const quranVoiceChannelOptions = [optionTag({ value: "", label: i18n.optionNotSet, selected: !guildConfig.quranRadioVoiceChannelId })]
+    .concat(
+      voiceChannels.map((channel) =>
+        optionTag({
+          value: channel.id,
+          label: channel.name,
+          selected: guildConfig.quranRadioVoiceChannelId === channel.id
+        })
+      )
+    )
+    .join("");
   const roleOptions = [optionTag({ value: "", label: i18n.optionNone, selected: !guildConfig.mentionRoleId })]
     .concat(
       roles.map((role) =>
@@ -1423,28 +1754,130 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
       selected: normalizeHadithGrade(guildConfig.hadithMinGrade) === choice.value
     })
   ).join("");
+  const guildAzkarIntervalOptionTags = reminderIntervalOptions(
+    guildConfig.azkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
+    dashboardLanguage
+  );
+  const guildHadithIntervalOptionTags = reminderIntervalOptions(
+    guildConfig.hadithIntervalMinutes ?? 360,
+    dashboardLanguage
+  );
 
-  return `
+  const quranQariId = Number.isFinite(Number(guildConfig.quranRadioQariId)) ? Number(guildConfig.quranRadioQariId) : 5;
+  const qariList = Array.isArray(quranQaris) && quranQaris.length ? quranQaris : null;
+  const quranQariOptions = (qariList || QURAN_QARI_PRESETS)
+    .map((qari) => {
+      const id = Number(qari?.id);
+      if (!Number.isFinite(id)) return "";
+      const label = qari?.name ? String(qari.name) : String(qari?.label || `Reciter ${id}`);
+      return optionTag({ value: id, label, selected: id === quranQariId });
+    })
+    .filter(Boolean)
+    .concat(
+      (qariList ? qariList.some((q) => Number(q?.id) === quranQariId) : QURAN_QARI_PRESETS.some((q) => q.id === quranQariId))
+        ? []
+        : [
+            optionTag({
+              value: quranQariId,
+              label: `Custom (${quranQariId})`,
+              selected: true
+            })
+          ]
+    )
+    .join("");
+
+  const quranSurahList = Array.isArray(quranSurahs) && quranSurahs.length ? quranSurahs : [];
+  const selectedSurahId = Number.isFinite(Number(guildConfig.quranDefaultSurahId))
+    ? Number(guildConfig.quranDefaultSurahId)
+    : 1;
+  const quranSurahOptions = quranSurahList.length
+    ? quranSurahList
+        .map((surah) => {
+          const id = Number(surah?.id);
+          const simple = surah?.name?.simple || `Surah ${id}`;
+          const english = surah?.name?.english ? ` — ${surah.name.english}` : "";
+          const label = `${id}. ${simple}${english}`;
+          return optionTag({ value: id, label, selected: id === selectedSurahId });
+        })
+        .join("")
+    : Array.from({ length: 114 }, (_, i) => i + 1)
+        .map((id) => optionTag({ value: id, label: `Surah ${id}`, selected: id === selectedSurahId }))
+        .join("");
+
+  const everyAyahList = Array.isArray(quranEveryAyahReciters) ? quranEveryAyahReciters : [];
+  const currentEveryAyahKey = String(guildConfig.quranEveryAyahReciterKey || "Alafasy_128kbps").trim();
+  const everyAyahKnown = new Set(everyAyahList.map((entry) => String(entry?.key || "")));
+  const everyAyahOptions = everyAyahList
+    .map((entry) => {
+      const key = String(entry?.key || "").trim();
+      const label = String(entry?.label || "").trim() || key;
+      if (!key) return "";
+      return optionTag({
+        value: key,
+        label: `${label} (${key})`,
+        selected: key === currentEveryAyahKey
+      });
+    })
+    .filter(Boolean)
+    .concat(
+      everyAyahKnown.has(currentEveryAyahKey)
+        ? []
+        : [
+            optionTag({
+              value: currentEveryAyahKey,
+              label: `Custom (${currentEveryAyahKey})`,
+              selected: true
+            })
+          ]
+    )
+    .join("");
+
+  const quranMode = String(quranStatus?.mode || "").trim().toLowerCase();
+  const quranStatusText =
+    quranMode === "radio"
+      ? i18n.quranStatusRadio
+      : quranMode === "surah"
+        ? i18n.quranStatusSurah
+        : quranMode === "ayah"
+          ? i18n.quranStatusAyah
+          : i18n.quranStatusStopped;
+  const quranVolumePercent = Math.round(Math.max(0, Math.min(1, Number(guildConfig.quranRadioVolume ?? 0.35))) * 100);
+
+  const guildBasePath = `/dashboard/guild/${String(guild.id)}`;
+  const sectionLink = ({ key, label, muted = false }) => {
+    const classes = ["", muted ? "muted" : "", section === key ? "active" : ""].filter(Boolean).join(" ");
+    return `<a class="${escapeHtml(classes)}" href="${escapeHtml(`${guildBasePath}?section=${key}`)}">${escapeHtml(label)}</a>`;
+  };
+
+  const sectionNav = `
+    <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
+      <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
+      ${sectionLink({ key: "quran-radio", label: i18n.sectionQuranRadio })}
+      ${sectionLink({ key: "quran-ayah", label: i18n.sectionQuranAyah })}
+      ${sectionLink({ key: "language", label: i18n.sectionLanguage })}
+      ${sectionLink({ key: "location", label: i18n.sectionLocation })}
+      ${sectionLink({ key: "channels", label: i18n.sectionChannels })}
+      ${sectionLink({ key: "preprayer", label: i18n.sectionPrePrayer })}
+      ${sectionLink({ key: "azkar", label: i18n.sectionAzkar })}
+      ${sectionLink({ key: "hadith", label: i18n.sectionHadith })}
+      ${sectionLink({ key: "instant", label: i18n.sectionInstant, muted: true })}
+      ${sectionLink({ key: "data", label: i18n.sectionData, muted: true })}
+    </aside>
+  `;
+
+  const stickyActions = `
+    <div class="sticky-actions">
+      <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveServerSettingsButton)}</button>
+      <a class="btn btn-soft" href="/dashboard">${escapeHtml(i18n.backToDashboardButton)}</a>
+    </div>
+  `;
+
+  const locationForm = `
     <section class="card">
-      <h2 class="section-title">${escapeHtml(i18n.serverSettingsTitle)}: ${escapeHtml(guild.name)}</h2>
-      <p class="subtle">${escapeHtml(i18n.serverSettingsDescription)}</p>
-      <div class="settings-shell">
-        <aside class="settings-nav" aria-label="${escapeHtml(i18n.sectionsTitle)}">
-          <div class="settings-nav-title">${escapeHtml(i18n.sectionsTitle)}</div>
-          <a href="#guild-location">${escapeHtml(i18n.sectionLocation)}</a>
-          <a href="#guild-channels">${escapeHtml(i18n.sectionChannels)}</a>
-          <a href="#guild-preprayer">${escapeHtml(i18n.sectionPrePrayer)}</a>
-          <a href="#guild-azkar">${escapeHtml(i18n.sectionAzkar)}</a>
-          <a href="#guild-hadith">${escapeHtml(i18n.sectionHadith)}</a>
-          <a class="muted" href="#guild-instant">${escapeHtml(i18n.sectionInstant)}</a>
-          <a class="muted" href="#guild-data">${escapeHtml(i18n.sectionData)}</a>
-        </aside>
-        <div class="settings-main">
-          <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}">
-            <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
-            <h3 id="guild-location" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
-              i18n.locationSectionTitle
-            )}</h3>
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.locationSectionTitle)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="location" />
         <div class="form-grid">
           ${settingsInputRow({
             label: i18n.cityLabel,
@@ -1463,10 +1896,17 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <label class="field"><span>${escapeHtml(i18n.methodLabel)}</span><select name="method">${methodOptions}</select></label>
           <label class="field"><span>${escapeHtml(i18n.schoolLabel)}</span><select name="school">${schoolOptions}</select></label>
         </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
 
-        <h3 id="guild-channels" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
-          i18n.adhanChannelsSectionTitle
-        )}</h3>
+  const channelsForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.adhanChannelsSectionTitle)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="channels" />
         <div class="form-grid">
           <label class="field"><span>${escapeHtml(i18n.reminderChannelLabel)}</span><select name="reminderChannelId">${textChannelOptions}</select></label>
           <label class="field"><span>${escapeHtml(i18n.voiceChannelLabel)}</span><select name="adhanVoiceChannelId">${voiceChannelOptions}</select></label>
@@ -1479,10 +1919,17 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
             checked: guildConfig.playAdhanInVoice
           })}
         </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
 
-        <h3 id="guild-preprayer" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
-          i18n.prePrayerSectionTitle
-        )}</h3>
+  const prePrayerForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.prePrayerSectionTitle)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="preprayer" />
         <div class="stack">
           ${checkboxRow({
             label: i18n.enablePrePrayerLabel,
@@ -1494,10 +1941,17 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <label class="field"><span>${escapeHtml(i18n.prePrayerLeadLabel)}</span><select name="prePrayerLeadMinutes">${prePrayerLeadOptionTags}</select></label>
           <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.prePrayerPrayersLabel)}</span>${prePrayerSelectionHtml}</label>
         </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
 
-        <h3 id="guild-azkar" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
-          i18n.azkarSectionTitle
-        )}</h3>
+  const azkarForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.azkarSectionTitle)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="azkar" />
         <div class="stack">
           ${checkboxRow({
             label: i18n.enableAzkarLabel,
@@ -1506,20 +1960,33 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           })}
         </div>
         <div class="form-grid" style="margin-top:10px;">
-          <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${globalLanguageOptions}</select></label>
-          ${settingsInputRow({
-            label: i18n.intervalMinutesLabel,
-            name: "azkarIntervalMinutes",
-            value: guildConfig.azkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES,
-            type: "number",
-            min: 30,
-            max: 1440
-          })}
+          <label class="field"><span>${escapeHtml(i18n.intervalMinutesLabel)}</span><select name="azkarIntervalMinutes">${guildAzkarIntervalOptionTags}</select></label>
         </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
 
-        <h3 id="guild-hadith" class="section-title settings-anchor" style="font-size:1.15rem;margin-top:18px;">${escapeHtml(
-          i18n.hadithSectionTitle
-        )}</h3>
+  const languageForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.sectionLanguage)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="language" />
+        <div class="form-grid">
+          <label class="field"><span>${escapeHtml(i18n.globalLanguageLabel)}</span><select name="language">${globalLanguageOptions}</select></label>
+        </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
+
+  const hadithForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.hadithSectionTitle)}</h3>
+      <form method="post" action="${escapeHtml(guildBasePath)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="hadith" />
         <div class="stack">
           ${checkboxRow({
             label: i18n.enableHadithLabel,
@@ -1528,34 +1995,152 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           })}
         </div>
         <div class="form-grid" style="margin-top:10px;">
-          ${settingsInputRow({
-            label: i18n.hadithHourLabel,
-            name: "hadithHour",
-            value: hadithTime.hour,
-            type: "number",
-            min: 0,
-            max: 23
-          })}
-          ${settingsInputRow({
-            label: i18n.hadithMinuteLabel,
-            name: "hadithMinute",
-            value: hadithTime.minute,
-            type: "number",
-            min: 0,
-            max: 59
-          })}
+          <label class="field"><span>${escapeHtml(i18n.hadithIntervalLabel)}</span><select name="hadithIntervalMinutes">${guildHadithIntervalOptionTags}</select></label>
           <label class="field"><span>${escapeHtml(i18n.minimumGradeLabel)}</span><select name="hadithMinGrade">${hadithGradeOptions}</select></label>
         </div>
-
-        <div class="sticky-actions">
-          <button class="btn btn-primary" type="submit">${escapeHtml(i18n.saveServerSettingsButton)}</button>
-          <a class="btn btn-soft" href="/dashboard">${escapeHtml(i18n.backToDashboardButton)}</a>
-        </div>
+        ${stickyActions}
       </form>
+    </section>
+  `;
 
-      <h3 id="guild-instant" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-        i18n.instantActionsTitle
+  const quranStatusCard = `
+    <div class="stack" style="margin-top:12px;">
+      <div class="check-row">
+        <div>
+          <div style="font-weight:800;">${escapeHtml(i18n.quranStatusLabel)}: ${escapeHtml(quranStatusText)}</div>
+          ${quranStatus?.lastError ? `<small>${escapeHtml(String(quranStatus.lastError))}</small>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const quranRadioForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(
+        i18n.quranRadioSectionTitle
       )}</h3>
+      <p class="subtle">${escapeHtml(i18n.quranRadioSectionDesc)}</p>
+      ${quranStatusCard}
+      <div class="form-actions" style="margin-top:12px;">
+        <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/quran/radio-start" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-soft" type="submit">${escapeHtml(i18n.startRadioButton)}</button>
+        </form>
+        <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/quran/radio-stop" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.stopRadioButton)}</button>
+        </form>
+        <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/quran/play-surah" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-soft" type="submit">${escapeHtml(i18n.playSurahButton)}</button>
+        </form>
+      </div>
+      <form method="post" action="${escapeHtml(guildBasePath)}" style="margin-top:12px;">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="quran-radio" />
+        <div class="stack">
+          ${checkboxRow({
+            label: i18n.enableQuranRadioLabel,
+            name: "quranRadioEnabled",
+            checked: guildConfig.quranRadioEnabled
+          })}
+        </div>
+        <div class="form-grid" style="margin-top:10px;">
+          <label class="field"><span>${escapeHtml(i18n.quranVoiceChannelLabel)}</span><select name="quranRadioVoiceChannelId">${quranVoiceChannelOptions}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.quranReciterLabel)}</span><select name="quranRadioQariId">${quranQariOptions}</select></label>
+          <label class="field" style="grid-column:1/-1;">
+            <span>${escapeHtml(i18n.quranVolumeLabel)}</span>
+            <div class="range-row">
+              <input
+                class="range"
+                type="range"
+                name="quranRadioVolume"
+                min="0"
+                max="100"
+                step="1"
+                value="${escapeHtml(quranVolumePercent)}"
+                oninput="this.nextElementSibling.textContent=this.value+'%';"
+              />
+              <output class="range-out" dir="ltr">${escapeHtml(quranVolumePercent)}%</output>
+            </div>
+          </label>
+          <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.quranSurahLabel)}</span><select name="quranDefaultSurahId">${quranSurahOptions}</select></label>
+        </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
+
+  const quranAyahForm = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(
+        i18n.quranAyahSectionTitle
+      )}</h3>
+      <p class="subtle">${escapeHtml(i18n.quranAyahSectionDesc)}</p>
+      ${quranStatusCard}
+      <div class="form-actions" style="margin-top:12px;">
+        <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/quran/play-ayah" class="inline-form">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+          <button class="btn btn-soft" type="submit">${escapeHtml(i18n.playAyahButton)}</button>
+        </form>
+      </div>
+      <form method="post" action="${escapeHtml(guildBasePath)}" style="margin-top:12px;">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
+        <input type="hidden" name="section" value="quran-ayah" />
+        <div class="form-grid">
+          <label class="field"><span>${escapeHtml(i18n.quranVoiceChannelLabel)}</span><select name="quranRadioVoiceChannelId">${quranVoiceChannelOptions}</select></label>
+          ${
+            everyAyahOptions
+              ? `<label class="field"><span>${escapeHtml(i18n.quranEveryAyahReciterLabel)}</span><select name="quranEveryAyahReciterKey">${everyAyahOptions}</select></label>`
+              : settingsInputRow({
+                  label: i18n.quranEveryAyahReciterLabel,
+                  name: "quranEveryAyahReciterKey",
+                  value: guildConfig.quranEveryAyahReciterKey || "Alafasy_128kbps",
+                  placeholder: "Alafasy_128kbps"
+                })
+          }
+          <label class="field" style="grid-column:1/-1;">
+            <span>${escapeHtml(i18n.quranVolumeLabel)}</span>
+            <div class="range-row">
+              <input
+                class="range"
+                type="range"
+                name="quranRadioVolume"
+                min="0"
+                max="100"
+                step="1"
+                value="${escapeHtml(quranVolumePercent)}"
+                oninput="this.nextElementSibling.textContent=this.value+'%';"
+              />
+              <output class="range-out" dir="ltr">${escapeHtml(quranVolumePercent)}%</output>
+            </div>
+          </label>
+          <label class="field" style="grid-column:1/-1;"><span>${escapeHtml(i18n.quranSurahLabel)}</span><select name="quranDefaultSurahId">${quranSurahOptions}</select></label>
+          ${settingsInputRow({
+            label: i18n.quranAyahFromLabel,
+            name: "quranDefaultAyahFrom",
+            value: guildConfig.quranDefaultAyahFrom ?? 1,
+            type: "number",
+            min: 1,
+            max: 999
+          })}
+          ${settingsInputRow({
+            label: i18n.quranAyahToLabel,
+            name: "quranDefaultAyahTo",
+            value: guildConfig.quranDefaultAyahTo ?? 7,
+            type: "number",
+            min: 1,
+            max: 999
+          })}
+        </div>
+        ${stickyActions}
+      </form>
+    </section>
+  `;
+
+  const instantPanel = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.instantActionsTitle)}</h3>
       <div class="form-actions">
         <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/instant-azkar" class="inline-form">
           <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
@@ -1566,10 +2151,12 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.sendNowHadithGuildButton)}</button>
         </form>
       </div>
+    </section>
+  `;
 
-      <h3 id="guild-data" class="section-title settings-anchor" style="font-size:1.1rem;margin-top:18px;">${escapeHtml(
-        i18n.dataRightsTitle
-      )}</h3>
+  const dataPanel = `
+    <section class="card">
+      <h3 class="section-title settings-anchor" style="font-size:1.15rem;margin-top:0;">${escapeHtml(i18n.dataRightsTitle)}</h3>
       <p class="subtle">${escapeHtml(i18n.dataRightsDesc)}</p>
       <div class="form-actions">
         <form method="post" action="/dashboard/guild/${escapeHtml(guild.id)}/delete-data" class="inline-form">
@@ -1585,9 +2172,46 @@ function renderGuildSettingsPage({ guild, guildConfig, textChannels, voiceChanne
           <button class="btn btn-ghost" type="submit">${escapeHtml(i18n.deleteServerDataButton)}</button>
         </form>
       </div>
-        </div>
+      <div class="form-actions">
+        <a class="btn btn-soft" href="/dashboard">${escapeHtml(i18n.backToDashboardButton)}</a>
       </div>
     </section>
+  `;
+
+  const activePanel =
+    section === "location"
+      ? locationForm
+      : section === "channels"
+        ? channelsForm
+        : section === "preprayer"
+          ? prePrayerForm
+          : section === "language"
+            ? languageForm
+          : section === "azkar"
+            ? azkarForm
+            : section === "hadith"
+              ? hadithForm
+              : section === "quran-radio"
+                ? quranRadioForm
+                : section === "quran-ayah"
+                  ? quranAyahForm
+                : section === "instant"
+                  ? instantPanel
+                  : dataPanel;
+
+  return `
+    <div class="stack">
+      <section class="card">
+        <h2 class="section-title">${escapeHtml(i18n.serverSettingsTitle)}: ${escapeHtml(guild.name)}</h2>
+        <p class="subtle">${escapeHtml(i18n.serverSettingsDescription)}</p>
+      </section>
+      <div class="settings-shell">
+        ${sectionNav}
+        <div class="settings-main">
+          <div class="stack">${activePanel}</div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -1687,7 +2311,7 @@ function splitUserGuildsForDashboard(discordGuilds, botGuildIds, clientId, botPe
   return { manageable, inviteOnly };
 }
 
-async function startDashboardServer({ client, guildStore, userStore }) {
+async function startDashboardServer({ client, guildStore, userStore, quranVoice }) {
   const app = express();
   const webPort = Number(process.env.WEB_PORT || 3000);
   const webBaseUrl = String(process.env.WEB_BASE_URL || `http://localhost:${webPort}`).replace(/\/+$/, "");
@@ -1746,12 +2370,13 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     const dashboardLanguage = getDashboardLanguage(req);
     const dashboardTheme = getDashboardTheme(req);
     const flash = consumeFlash(req);
-    const content = buildHomeContent({ oauthEnabled, dashboardLanguage });
+    const content = buildHomeContent({ oauthEnabled, dashboardLanguage, user: req.session.discordUser || null });
     const html = renderLayout({
       title: "Adhan Reminder Dashboard",
       content,
       user: req.session.discordUser || null,
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
+      addAsAppUrlValue: addAsAppUrl({ clientId }),
       flash,
       dashboardLanguage,
       dashboardTheme,
@@ -1768,6 +2393,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       content: buildPrivacyContent(dashboardLanguage),
       user: req.session.discordUser || null,
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
+      addAsAppUrlValue: addAsAppUrl({ clientId }),
       flash: consumeFlash(req),
       dashboardLanguage,
       dashboardTheme,
@@ -1784,6 +2410,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       content: buildTermsContent(dashboardLanguage),
       user: req.session.discordUser || null,
       inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
+      addAsAppUrlValue: addAsAppUrl({ clientId }),
       flash: consumeFlash(req),
       dashboardLanguage,
       dashboardTheme,
@@ -1793,6 +2420,10 @@ async function startDashboardServer({ client, guildStore, userStore }) {
   });
 
   app.get("/auth/discord", (req, res) => {
+    if (req.session.discordUser) {
+      res.redirect("/dashboard");
+      return;
+    }
     if (!oauthEnabled) {
       setFlash(req, "error", "Missing CLIENT_ID or CLIENT_SECRET in .env for dashboard login.");
       res.redirect("/");
@@ -1862,6 +2493,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     try {
       const dashboardLanguage = getDashboardLanguage(req);
       const dashboardTheme = getDashboardTheme(req);
+      const activeSection = normalizeDashboardProfileSection(req.query?.section);
       await refreshDiscordSession(req);
       const userId = req.session.discordUser.id;
       const userConfig = userStore.getUserConfig(userId);
@@ -1877,13 +2509,15 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         manageableGuilds: manageable,
         inviteOnlyGuilds: inviteOnly,
         csrfToken: ensureCsrfToken(req),
-        dashboardLanguage
+        dashboardLanguage,
+        activeSection
       });
       const html = renderLayout({
         title: "Dashboard",
         content,
         user: req.session.discordUser,
         inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
+        addAsAppUrlValue: addAsAppUrl({ clientId }),
         flash: consumeFlash(req),
         dashboardLanguage,
         dashboardTheme,
@@ -1903,9 +2537,120 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       return;
     }
 
+    const sectionRaw = req.body.section;
+    const section = sectionRaw ? normalizeDashboardProfileSection(sectionRaw) : null;
+    const redirectUrl = section ? `/dashboard?section=${section}` : "/dashboard";
+
     try {
       const userId = req.session.discordUser.id;
       const current = userStore.getUserConfig(userId);
+      if (section === "dm-location") {
+        const city = String(req.body.city || "").trim();
+        const country = String(req.body.country || "").trim();
+        const method = parseBoundedInt(req.body.method, Number(current.location?.method ?? 3), 0, 99);
+        const school = parseBoundedInt(req.body.school, Number(current.location?.school ?? 0), 0, 1);
+        const resolvedLocation = await resolveCityCountryLocation({ city, country, method, school });
+        userStore.updateUserConfig(userId, (draft) => {
+          draft.location = resolvedLocation;
+          return draft;
+        });
+        setFlash(req, "success", "Location saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "dm-language") {
+        const language = normalizeContentLanguage(req.body.language || current.language);
+        userStore.updateUserConfig(userId, (draft) => {
+          draft.language = language;
+          draft.dmAzkarLanguage = language;
+          draft.dmHadithLanguage = language;
+          return draft;
+        });
+        setFlash(req, "success", "Language saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "dm-reminders") {
+        const dmRemindersEnabled = boolFromCheckbox(req.body.dmRemindersEnabled);
+        const dmPrePrayerRemindersEnabled = boolFromCheckbox(req.body.dmPrePrayerRemindersEnabled);
+        const dmAzkarRemindersEnabled = boolFromCheckbox(req.body.dmAzkarRemindersEnabled);
+        const dmHadithRemindersEnabled = boolFromCheckbox(req.body.dmHadithRemindersEnabled);
+        const anyEnabled =
+          dmRemindersEnabled || dmPrePrayerRemindersEnabled || dmAzkarRemindersEnabled || dmHadithRemindersEnabled;
+
+        if (anyEnabled && !hasValidLocation(current)) {
+          throw new Error("Set your location first (Location tab), then enable reminders.");
+        }
+
+        userStore.updateUserConfig(userId, (draft) => {
+          draft.dmRemindersEnabled = dmRemindersEnabled;
+          draft.dmPrePrayerRemindersEnabled = dmPrePrayerRemindersEnabled;
+          draft.dmAzkarRemindersEnabled = dmAzkarRemindersEnabled;
+          draft.dmHadithRemindersEnabled = dmHadithRemindersEnabled;
+
+          if (dmAzkarRemindersEnabled && !current.dmAzkarRemindersEnabled) {
+            draft.dmAzkarLastSentAt = null;
+          }
+          if (dmHadithRemindersEnabled && !current.dmHadithRemindersEnabled) {
+            draft.dmHadithLastTriggeredDate = null;
+            draft.dmHadithLastSentAt = null;
+          }
+          if (dmPrePrayerRemindersEnabled && !current.dmPrePrayerRemindersEnabled) {
+            draft.dmPrePrayerLastTriggered = {};
+          }
+          if (dmRemindersEnabled && !current.dmRemindersEnabled) {
+            draft.lastTriggered = {};
+          }
+          return draft;
+        });
+
+        setFlash(req, "success", "DM reminder toggles saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "dm-schedule") {
+        const dmPrePrayerLeadMinutes = normalizePrePrayerLeadMinutes(
+          req.body.dmPrePrayerLeadMinutes,
+          Number(current.dmPrePrayerLeadMinutes ?? DEFAULT_PRE_PRAYER_LEAD_MINUTES)
+        );
+        const dmPrePrayerSelections = ensureAtLeastOnePrayerSelected(
+          parsePrePrayerSelectionsFromBody(req.body, "dmPrePrayer_")
+        );
+        const dmAzkarIntervalMinutes = parseBoundedInt(
+          req.body.dmAzkarIntervalMinutes,
+          Number(current.dmAzkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES),
+          30,
+          1440
+        );
+        const dmHadithMinGrade = normalizeHadithGrade(req.body.dmHadithMinGrade || current.dmHadithMinGrade);
+        const dmHadithIntervalMinutes = parseOptionalIntervalMinutes(
+          req.body.dmHadithIntervalMinutes,
+          current.dmHadithIntervalMinutes ?? null
+        );
+        const intervalChanged = (current.dmHadithIntervalMinutes ?? null) !== (dmHadithIntervalMinutes ?? null);
+
+        userStore.updateUserConfig(userId, (draft) => {
+          draft.dmPrePrayerLeadMinutes = dmPrePrayerLeadMinutes;
+          draft.dmPrePrayerSelections = dmPrePrayerSelections;
+          draft.dmAzkarIntervalMinutes = dmAzkarIntervalMinutes;
+          draft.dmHadithIntervalMinutes = dmHadithIntervalMinutes;
+          draft.dmHadithMinGrade = dmHadithMinGrade;
+          if (intervalChanged) {
+            draft.dmHadithLastTriggeredDate = null;
+            draft.dmHadithLastSentAt = null;
+          }
+          return draft;
+        });
+
+        setFlash(req, "success", "DM schedule settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      // Backwards-compat (older UI): save everything in one form.
       const city = String(req.body.city || "").trim();
       const country = String(req.body.country || "").trim();
       const method = parseBoundedInt(req.body.method, Number(current.location?.method ?? 3), 0, 99);
@@ -1930,12 +2675,11 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         1440
       );
       const language = normalizeContentLanguage(req.body.language || current.language);
-      const dmHadithReminderTime = parseReminderTimeFromFields(
-        req.body.dmHadithHour,
-        req.body.dmHadithMinute,
-        current.dmHadithReminderTime
-      );
       const dmHadithMinGrade = normalizeHadithGrade(req.body.dmHadithMinGrade || current.dmHadithMinGrade);
+      const dmHadithIntervalMinutes = parseOptionalIntervalMinutes(
+        req.body.dmHadithIntervalMinutes,
+        current.dmHadithIntervalMinutes ?? null
+      );
 
       userStore.updateUserConfig(userId, (draft) => {
         draft.location = resolvedLocation;
@@ -1948,7 +2692,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         draft.language = language;
         draft.dmAzkarIntervalMinutes = dmAzkarIntervalMinutes;
         draft.dmAzkarLanguage = language;
-        draft.dmHadithReminderTime = dmHadithReminderTime;
+        draft.dmHadithIntervalMinutes = dmHadithIntervalMinutes;
         draft.dmHadithMinGrade = dmHadithMinGrade;
         draft.dmHadithLanguage = language;
         if (dmAzkarRemindersEnabled) {
@@ -1956,6 +2700,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         }
         if (dmHadithRemindersEnabled) {
           draft.dmHadithLastTriggeredDate = null;
+          draft.dmHadithLastSentAt = null;
         }
         if (dmPrePrayerRemindersEnabled) {
           draft.dmPrePrayerLastTriggered = {};
@@ -1967,10 +2712,10 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       });
 
       setFlash(req, "success", "Personal DM settings saved.");
-      res.redirect("/dashboard");
+      res.redirect(redirectUrl);
     } catch (error) {
       setFlash(req, "error", `Could not save personal settings: ${error.message}`);
-      res.redirect("/dashboard");
+      res.redirect(redirectUrl);
     }
   });
 
@@ -2058,6 +2803,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     try {
       const dashboardLanguage = getDashboardLanguage(req);
       const dashboardTheme = getDashboardTheme(req);
+      const activeSection = normalizeDashboardGuildSection(req.query?.section);
       await refreshDiscordSession(req);
       const guildId = req.params.guildId;
       const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
@@ -2093,6 +2839,10 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         .sort((a, b) => b.position - a.position);
 
       const guildConfig = guildStore.getGuildConfig(guildId);
+      const quranStatus = quranVoice?.getStatus ? quranVoice.getStatus(guildId) : null;
+      const quranSurahs = await getSurahs().catch(() => []);
+      const quranEveryAyahReciters = await getEveryAyahReciters().catch(() => []);
+      const quranQaris = await getQaris().catch(() => []);
       const content = renderGuildSettingsPage({
         guild,
         guildConfig,
@@ -2100,7 +2850,12 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         voiceChannels,
         roles: selectableRoles,
         csrfToken: ensureCsrfToken(req),
-        dashboardLanguage
+        dashboardLanguage,
+        activeSection,
+        quranStatus,
+        quranSurahs,
+        quranEveryAyahReciters,
+        quranQaris
       });
 
       const html = renderLayout({
@@ -2108,6 +2863,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         content,
         user: req.session.discordUser,
         inviteUrlValue: inviteUrl({ clientId, permissions: botPermissions }),
+        addAsAppUrlValue: addAsAppUrl({ clientId }),
         flash: consumeFlash(req),
         dashboardLanguage,
         dashboardTheme,
@@ -2128,6 +2884,9 @@ async function startDashboardServer({ client, guildStore, userStore }) {
     }
 
     const guildId = req.params.guildId;
+    const sectionRaw = req.body.section;
+    const section = sectionRaw ? normalizeDashboardGuildSection(sectionRaw) : null;
+    const redirectUrl = section ? `/dashboard/guild/${guildId}?section=${section}` : `/dashboard/guild/${guildId}`;
     try {
       await refreshDiscordSession(req);
       const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
@@ -2144,6 +2903,233 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       }
 
       const current = guildStore.getGuildConfig(guildId);
+
+      if (section === "location") {
+        const city = String(req.body.city || "").trim();
+        const country = String(req.body.country || "").trim();
+        const method = parseBoundedInt(req.body.method, Number(current.location?.method ?? 3), 0, 99);
+        const school = parseBoundedInt(req.body.school, Number(current.location?.school ?? 0), 0, 1);
+        const resolvedLocation = await resolveCityCountryLocation({ city, country, method, school });
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.location = resolvedLocation;
+          return draft;
+        });
+        setFlash(req, "success", "Location saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "channels") {
+        const reminderChannelId = normalizeIdField(req.body.reminderChannelId);
+        const adhanVoiceChannelId = normalizeIdField(req.body.adhanVoiceChannelId);
+        const mentionRoleId = normalizeIdField(req.body.mentionRoleId);
+        const playAdhanInVoice = boolFromCheckbox(req.body.playAdhanInVoice);
+
+        if (playAdhanInVoice && !adhanVoiceChannelId) {
+          throw new Error("Voice playback is enabled but no voice channel is selected.");
+        }
+
+        const remindersCurrentlyEnabled =
+          Boolean(current.prePrayerRemindersEnabled) || Boolean(current.azkarRemindersEnabled) || Boolean(current.hadithRemindersEnabled);
+        if (!reminderChannelId && remindersCurrentlyEnabled) {
+          throw new Error("Disable pre-prayer/azkar/hadith reminders before clearing the reminder channel.");
+        }
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.reminderChannelId = reminderChannelId;
+          draft.adhanVoiceChannelId = adhanVoiceChannelId;
+          draft.playAdhanInVoice = Boolean(playAdhanInVoice && adhanVoiceChannelId);
+          draft.mentionRoleId = mentionRoleId;
+          return draft;
+        });
+
+        setFlash(req, "success", "Channel settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "preprayer") {
+        const prePrayerRemindersEnabled = boolFromCheckbox(req.body.prePrayerRemindersEnabled);
+        const prePrayerLeadMinutes = normalizePrePrayerLeadMinutes(
+          req.body.prePrayerLeadMinutes,
+          Number(current.prePrayerLeadMinutes ?? DEFAULT_PRE_PRAYER_LEAD_MINUTES)
+        );
+        const prePrayerSelections = ensureAtLeastOnePrayerSelected(
+          parsePrePrayerSelectionsFromBody(req.body, "prePrayer_")
+        );
+
+        if (prePrayerRemindersEnabled && !current.reminderChannelId) {
+          throw new Error("Choose a reminder channel first (Channels tab), then enable pre-prayer reminders.");
+        }
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.prePrayerRemindersEnabled = prePrayerRemindersEnabled;
+          draft.prePrayerLeadMinutes = prePrayerLeadMinutes;
+          draft.prePrayerSelections = prePrayerSelections;
+          if (prePrayerRemindersEnabled && !current.prePrayerRemindersEnabled) {
+            draft.prePrayerLastTriggered = {};
+          }
+          return draft;
+        });
+
+        setFlash(req, "success", "Pre-prayer settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "azkar") {
+        const azkarRemindersEnabled = boolFromCheckbox(req.body.azkarRemindersEnabled);
+        const azkarIntervalMinutes = parseBoundedInt(
+          req.body.azkarIntervalMinutes,
+          Number(current.azkarIntervalMinutes ?? DEFAULT_AZKAR_INTERVAL_MINUTES),
+          30,
+          1440
+        );
+
+        if (azkarRemindersEnabled && !current.reminderChannelId) {
+          throw new Error("Choose a reminder channel first (Channels tab), then enable azkar.");
+        }
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.azkarRemindersEnabled = azkarRemindersEnabled;
+          draft.azkarIntervalMinutes = azkarIntervalMinutes;
+          if (azkarRemindersEnabled && !current.azkarRemindersEnabled) {
+            draft.azkarLastSentAt = null;
+          }
+          return draft;
+        });
+
+        setFlash(req, "success", "Azkar settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "language") {
+        const language = normalizeContentLanguage(req.body.language || current.language);
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.language = language;
+          draft.azkarLanguage = language;
+          draft.hadithLanguage = language;
+          return draft;
+        });
+        setFlash(req, "success", "Language settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "hadith") {
+        const hadithRemindersEnabled = boolFromCheckbox(req.body.hadithRemindersEnabled);
+        const hadithIntervalMinutes = parseOptionalIntervalMinutes(
+          req.body.hadithIntervalMinutes,
+          current.hadithIntervalMinutes ?? null
+        );
+        const intervalChanged = (current.hadithIntervalMinutes ?? null) !== (hadithIntervalMinutes ?? null);
+        const hadithMinGrade = normalizeHadithGrade(req.body.hadithMinGrade || current.hadithMinGrade);
+
+        if (hadithRemindersEnabled && !current.reminderChannelId) {
+          throw new Error("Choose a reminder channel first (Channels tab), then enable hadith.");
+        }
+        if (hadithRemindersEnabled && !hadithIntervalMinutes) {
+          throw new Error("Choose a hadith interval before enabling hadith reminders.");
+        }
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.hadithRemindersEnabled = hadithRemindersEnabled;
+          draft.hadithIntervalMinutes = hadithIntervalMinutes;
+          draft.hadithMinGrade = hadithMinGrade;
+          if (hadithRemindersEnabled && !current.hadithRemindersEnabled) {
+            draft.hadithLastTriggeredDate = null;
+            draft.hadithLastSentAt = null;
+          }
+          if (intervalChanged) {
+            draft.hadithLastTriggeredDate = null;
+            draft.hadithLastSentAt = null;
+          }
+          return draft;
+        });
+
+        setFlash(req, "success", "Hadith settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "quran-radio") {
+        const quranRadioEnabled = boolFromCheckbox(req.body.quranRadioEnabled);
+        const quranRadioVoiceChannelId = normalizeIdField(req.body.quranRadioVoiceChannelId);
+        const quranRadioQariId = parseBoundedInt(
+          req.body.quranRadioQariId,
+          Number(current.quranRadioQariId ?? 5),
+          1,
+          10_000
+        );
+        const quranRadioVolume = normalizeVolume01FromPercent(req.body.quranRadioVolume, current.quranRadioVolume ?? 0.35);
+        const quranDefaultSurahId = parseBoundedInt(req.body.quranDefaultSurahId, Number(current.quranDefaultSurahId ?? 1), 1, 114);
+
+        if (quranRadioEnabled && !quranRadioVoiceChannelId) {
+          throw new Error("Choose a Quran voice channel before enabling Quran 24/7.");
+        }
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          draft.quranRadioEnabled = quranRadioEnabled;
+          draft.quranRadioVoiceChannelId = quranRadioVoiceChannelId;
+          draft.quranRadioQariId = quranRadioQariId;
+          draft.quranRadioVolume = quranRadioVolume;
+          draft.quranDefaultSurahId = quranDefaultSurahId;
+          return draft;
+        });
+
+        // Best-effort: apply radio state immediately.
+        if (quranVoice?.startRadio && quranVoice?.stopGuild) {
+          const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
+          if (guild) {
+            if (quranRadioEnabled && quranRadioVoiceChannelId) {
+              quranVoice
+                .startRadio({
+                  guild,
+                  voiceChannelId: quranRadioVoiceChannelId,
+                  qariId: quranRadioQariId,
+                  volume: quranRadioVolume,
+                  startSurahId: quranDefaultSurahId
+                })
+                .catch((error) => console.error(`Failed to start Quran radio from dashboard in guild ${guildId}:`, error.message));
+            } else {
+              quranVoice.stopGuild(guildId, { leave: true }).catch(() => null);
+            }
+          }
+        }
+
+        setFlash(req, "success", "Quran 24/7 settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      if (section === "quran-ayah") {
+        const quranRadioVoiceChannelId = normalizeIdField(req.body.quranRadioVoiceChannelId);
+        const quranRadioVolume = normalizeVolume01FromPercent(req.body.quranRadioVolume, current.quranRadioVolume ?? 0.35);
+        const quranEveryAyahReciterKey = String(req.body.quranEveryAyahReciterKey || current.quranEveryAyahReciterKey || "")
+          .trim()
+          .slice(0, 80);
+        const quranDefaultSurahId = parseBoundedInt(req.body.quranDefaultSurahId, Number(current.quranDefaultSurahId ?? 1), 1, 114);
+        const quranDefaultAyahFrom = parseBoundedInt(req.body.quranDefaultAyahFrom, Number(current.quranDefaultAyahFrom ?? 1), 1, 999);
+        const quranDefaultAyahTo = parseBoundedInt(req.body.quranDefaultAyahTo, Number(current.quranDefaultAyahTo ?? 1), 1, 999);
+
+        guildStore.updateGuildConfig(guildId, (draft) => {
+          // Reuse the same voice channel + volume settings for all Quran playback.
+          draft.quranRadioVoiceChannelId = quranRadioVoiceChannelId;
+          draft.quranRadioVolume = quranRadioVolume;
+          draft.quranEveryAyahReciterKey = quranEveryAyahReciterKey || draft.quranEveryAyahReciterKey;
+          draft.quranDefaultSurahId = quranDefaultSurahId;
+          draft.quranDefaultAyahFrom = quranDefaultAyahFrom;
+          draft.quranDefaultAyahTo = quranDefaultAyahTo;
+          return draft;
+        });
+
+        setFlash(req, "success", "Ayah playback settings saved.");
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      // Backwards-compat (older UI): save everything in one form.
       const city = String(req.body.city || "").trim();
       const country = String(req.body.country || "").trim();
       const method = parseBoundedInt(req.body.method, Number(current.location?.method ?? 3), 0, 99);
@@ -2173,10 +3159,9 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       const language = normalizeContentLanguage(req.body.language || current.language);
 
       const hadithRemindersEnabled = boolFromCheckbox(req.body.hadithRemindersEnabled);
-      const hadithReminderTime = parseReminderTimeFromFields(
-        req.body.hadithHour,
-        req.body.hadithMinute,
-        current.hadithReminderTime
+      const hadithIntervalMinutes = parseOptionalIntervalMinutes(
+        req.body.hadithIntervalMinutes,
+        current.hadithIntervalMinutes ?? null
       );
       const hadithMinGrade = normalizeHadithGrade(req.body.hadithMinGrade || current.hadithMinGrade);
 
@@ -2201,7 +3186,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         draft.azkarIntervalMinutes = azkarIntervalMinutes;
         draft.azkarLanguage = language;
         draft.hadithRemindersEnabled = hadithRemindersEnabled;
-        draft.hadithReminderTime = hadithReminderTime;
+        draft.hadithIntervalMinutes = hadithIntervalMinutes;
         draft.hadithMinGrade = hadithMinGrade;
         draft.hadithLanguage = language;
         if (azkarRemindersEnabled) {
@@ -2209,6 +3194,7 @@ async function startDashboardServer({ client, guildStore, userStore }) {
         }
         if (hadithRemindersEnabled) {
           draft.hadithLastTriggeredDate = null;
+          draft.hadithLastSentAt = null;
         }
         if (prePrayerRemindersEnabled) {
           draft.prePrayerLastTriggered = {};
@@ -2217,11 +3203,184 @@ async function startDashboardServer({ client, guildStore, userStore }) {
       });
 
       setFlash(req, "success", "Server settings saved.");
-      res.redirect(`/dashboard/guild/${guildId}`);
+      res.redirect(redirectUrl);
     } catch (error) {
       setFlash(req, "error", `Could not save server settings: ${error.message}`);
-      res.redirect(`/dashboard/guild/${guildId}`);
+      res.redirect(redirectUrl);
     }
+  });
+
+  app.post("/dashboard/guild/:guildId/quran/radio-start", requireAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+      return;
+    }
+
+    try {
+      await refreshDiscordSession(req);
+      const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
+      const { manageable } = splitUserGuildsForDashboard(
+        req.session.discordGuilds || [],
+        botGuildIds,
+        clientId,
+        botPermissions
+      );
+      if (!manageable.some((guild) => guild.id === guildId)) {
+        throw new Error("You do not have permission to update that server.");
+      }
+
+      const config = guildStore.getGuildConfig(guildId);
+      const voiceChannelId = config.quranRadioVoiceChannelId || config.adhanVoiceChannelId;
+      if (!voiceChannelId) {
+        throw new Error("Choose a Quran voice channel first.");
+      }
+      if (!quranVoice?.startRadio) {
+        throw new Error("Quran voice module is not enabled on this server.");
+      }
+
+      const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId));
+      await quranVoice.startRadio({
+        guild,
+        voiceChannelId,
+        qariId: config.quranRadioQariId ?? 5,
+        volume: config.quranRadioVolume ?? 0.35,
+        startSurahId: config.quranDefaultSurahId ?? 1
+      });
+      setFlash(req, "success", "Quran radio started.");
+    } catch (error) {
+      setFlash(req, "error", `Could not start Quran radio: ${error.message}`);
+    }
+
+    res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+  });
+
+  app.post("/dashboard/guild/:guildId/quran/radio-stop", requireAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+      return;
+    }
+
+    try {
+      await refreshDiscordSession(req);
+      const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
+      const { manageable } = splitUserGuildsForDashboard(
+        req.session.discordGuilds || [],
+        botGuildIds,
+        clientId,
+        botPermissions
+      );
+      if (!manageable.some((guild) => guild.id === guildId)) {
+        throw new Error("You do not have permission to update that server.");
+      }
+
+      if (!quranVoice?.stopGuild) {
+        throw new Error("Quran voice module is not enabled on this server.");
+      }
+      await quranVoice.stopGuild(guildId, { leave: true });
+      setFlash(req, "success", "Quran radio stopped.");
+    } catch (error) {
+      setFlash(req, "error", `Could not stop Quran radio: ${error.message}`);
+    }
+
+    res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+  });
+
+  app.post("/dashboard/guild/:guildId/quran/play-surah", requireAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+      return;
+    }
+
+    try {
+      await refreshDiscordSession(req);
+      const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
+      const { manageable } = splitUserGuildsForDashboard(
+        req.session.discordGuilds || [],
+        botGuildIds,
+        clientId,
+        botPermissions
+      );
+      if (!manageable.some((guild) => guild.id === guildId)) {
+        throw new Error("You do not have permission to update that server.");
+      }
+
+      const config = guildStore.getGuildConfig(guildId);
+      const voiceChannelId = config.quranRadioVoiceChannelId || config.adhanVoiceChannelId;
+      if (!voiceChannelId) {
+        throw new Error("Choose a Quran voice channel first.");
+      }
+      if (!quranVoice?.playSurahOnce) {
+        throw new Error("Quran voice module is not enabled on this server.");
+      }
+
+      const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId));
+      await quranVoice.playSurahOnce({
+        guild,
+        voiceChannelId,
+        qariId: config.quranRadioQariId ?? 5,
+        surahId: config.quranDefaultSurahId ?? 1,
+        volume: config.quranRadioVolume ?? 0.35
+      });
+      setFlash(req, "success", "Surah playback started.");
+    } catch (error) {
+      setFlash(req, "error", `Could not play surah: ${error.message}`);
+    }
+
+    res.redirect(`/dashboard/guild/${guildId}?section=quran-radio`);
+  });
+
+  app.post("/dashboard/guild/:guildId/quran/play-ayah", requireAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    if (!verifyCsrf(req)) {
+      setFlash(req, "error", "Invalid form session. Refresh and try again.");
+      res.redirect(`/dashboard/guild/${guildId}?section=quran-ayah`);
+      return;
+    }
+
+    try {
+      await refreshDiscordSession(req);
+      const botGuildIds = new Set([...client.guilds.cache.keys(), ...Object.keys(guildStore.getAllConfigs())]);
+      const { manageable } = splitUserGuildsForDashboard(
+        req.session.discordGuilds || [],
+        botGuildIds,
+        clientId,
+        botPermissions
+      );
+      if (!manageable.some((guild) => guild.id === guildId)) {
+        throw new Error("You do not have permission to update that server.");
+      }
+
+      const config = guildStore.getGuildConfig(guildId);
+      const voiceChannelId = config.quranRadioVoiceChannelId || config.adhanVoiceChannelId;
+      if (!voiceChannelId) {
+        throw new Error("Choose a Quran voice channel first.");
+      }
+      if (!quranVoice?.playAyahRangeOnce) {
+        throw new Error("Quran voice module is not enabled on this server.");
+      }
+
+      const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId));
+      await quranVoice.playAyahRangeOnce({
+        guild,
+        voiceChannelId,
+        everyAyahReciterKey: config.quranEveryAyahReciterKey || "Alafasy_128kbps",
+        surahId: config.quranDefaultSurahId ?? 1,
+        fromAyah: config.quranDefaultAyahFrom ?? 1,
+        toAyah: config.quranDefaultAyahTo ?? 7,
+        volume: config.quranRadioVolume ?? 0.35
+      });
+      setFlash(req, "success", "Ayah playback started.");
+    } catch (error) {
+      setFlash(req, "error", `Could not play ayahs: ${error.message}`);
+    }
+
+    res.redirect(`/dashboard/guild/${guildId}?section=quran-ayah`);
   });
 
   app.post("/dashboard/guild/:guildId/instant-azkar", requireAuth, async (req, res) => {
@@ -2360,5 +3519,3 @@ async function startDashboardServer({ client, guildStore, userStore }) {
 module.exports = {
   startDashboardServer
 };
-
-

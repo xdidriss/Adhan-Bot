@@ -48,10 +48,12 @@ const DEFAULT_USER_CONFIG = {
   dmAzkarLanguage: "english",
   dmAzkarLastSentAt: null,
   dmHadithRemindersEnabled: false,
+  dmHadithIntervalMinutes: 360,
   dmHadithReminderTime: "20:00",
   dmHadithMinGrade: "sahih",
   dmHadithLanguage: "english",
   dmHadithLastTriggeredDate: null,
+  dmHadithLastSentAt: null,
   recentAzkarIds: [],
   recentHadithIds: []
 };
@@ -68,6 +70,9 @@ function normalizeUserConfig(config) {
   normalized.dmPrePrayerSelections = normalizePrePrayerSelections(config?.dmPrePrayerSelections);
   normalized.dmPrePrayerLastTriggered = { ...(config?.dmPrePrayerLastTriggered || {}) };
   normalized.lastTriggered = { ...(config?.lastTriggered || {}) };
+  normalized.dmHadithIntervalMinutes = Number.isFinite(Number(config?.dmHadithIntervalMinutes))
+    ? Math.min(1440, Math.max(30, Math.round(Number(config.dmHadithIntervalMinutes))))
+    : DEFAULT_USER_CONFIG.dmHadithIntervalMinutes;
   normalized.recentAzkarIds = Array.isArray(config?.recentAzkarIds) ? [...config.recentAzkarIds] : [];
   normalized.recentHadithIds = Array.isArray(config?.recentHadithIds) ? [...config.recentHadithIds] : [];
   return normalized;
