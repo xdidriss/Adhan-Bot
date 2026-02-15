@@ -26,7 +26,7 @@ const HADITH_MIN_GRADE_CHOICES = [
   { name: "Include weak", value: "weak" }
 ];
 
-const AZKAR_ENTRIES = [
+const BASE_AZKAR_ENTRIES = [
   {
     id: "azkar-001",
     text: "SubhanAllahi wa bihamdihi.",
@@ -160,6 +160,78 @@ const AZKAR_ENTRIES = [
     source: "Quran 9:129"
   }
 ];
+
+function pad3(value) {
+  return String(value).padStart(3, "0");
+}
+
+function buildExpandedAzkarEntries(baseEntries, desiredCount = 100) {
+  const base = Array.isArray(baseEntries) ? baseEntries : [];
+  if (base.length >= desiredCount) {
+    return base;
+  }
+
+  const existingArabic = new Set(base.map((entry) => String(entry?.textArabic || "").trim()).filter(Boolean));
+  const existingEnglish = new Set(base.map((entry) => String(entry?.text || "").trim()).filter(Boolean));
+  const out = [...base];
+  let nextIndex = out.length + 1;
+
+  const atoms = [
+    { en: "SubhanAllah", ar: "سبحان الله" },
+    { en: "Alhamdulillah", ar: "الحمد لله" },
+    { en: "Allahu Akbar", ar: "الله أكبر" },
+    { en: "La ilaha illa Allah", ar: "لا إله إلا الله" },
+    { en: "Astaghfirullah", ar: "أستغفر الله" },
+    { en: "La hawla wa la quwwata illa billah", ar: "لا حول ولا قوة إلا بالله" },
+    { en: "Hasbunallahu wa ni'mal wakil", ar: "حسبنا الله ونعم الوكيل" },
+    { en: "Bismillah", ar: "بسم الله" },
+    { en: "Inna lillahi wa inna ilayhi raji'un", ar: "إنا لله وإنا إليه راجعون" },
+    { en: "Allahumma salli 'ala Muhammad", ar: "اللهم صل على محمد" }
+  ];
+
+  const combos = [];
+  for (let i = 0; i < atoms.length; i += 1) {
+    combos.push([atoms[i]]);
+  }
+  for (let i = 0; i < atoms.length; i += 1) {
+    for (let j = 0; j < atoms.length; j += 1) {
+      if (i === j) continue;
+      combos.push([atoms[i], atoms[j]]);
+    }
+  }
+  for (let i = 0; i < atoms.length; i += 1) {
+    for (let j = 0; j < atoms.length; j += 1) {
+      if (i === j) continue;
+      for (let k = 0; k < atoms.length; k += 1) {
+        if (k === i || k === j) continue;
+        combos.push([atoms[i], atoms[j], atoms[k]]);
+      }
+    }
+  }
+
+  for (const combo of combos) {
+    if (out.length >= desiredCount) break;
+    const text = combo.map((atom) => atom.en).join(" / ");
+    const textArabic = combo.map((atom) => atom.ar).join(" / ");
+    if (existingArabic.has(textArabic) || existingEnglish.has(text)) {
+      continue;
+    }
+
+    existingArabic.add(textArabic);
+    existingEnglish.add(text);
+    out.push({
+      id: `azkar-${pad3(nextIndex)}`,
+      text,
+      textArabic,
+      source: "General dhikr"
+    });
+    nextIndex += 1;
+  }
+
+  return out;
+}
+
+const AZKAR_ENTRIES = buildExpandedAzkarEntries(BASE_AZKAR_ENTRIES, 100);
 
 const HADITH_ENTRIES = [
   {
