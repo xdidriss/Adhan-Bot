@@ -1,4 +1,5 @@
-# Discord Adhan Bot
+# Discord Adhan Bot 
+Team Sandid Support Server [discord.gg/q6BRpvErCv](https://discord.com/invite/q6BRpvErCv)
 
 Discord bot for Islamic prayer reminders (adhan) with:
 
