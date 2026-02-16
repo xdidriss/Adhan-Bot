@@ -82,13 +82,9 @@ const client = new Client({
 });
 
 const quranVoice = createQuranVoiceManager({ client, guildStore });
-
-startDashboardServer({
-  client,
-  guildStore,
-  userStore,
-  quranVoice
-});
+let dashboardHttpServer = null;
+let schedulerTimer = null;
+let isShuttingDown = false;
 
 const GUILD_ONLY_COMMANDS = new Set([
   "quran-radio",
@@ -273,6 +269,93 @@ const ARABIC_TEXT_REPLACEMENTS = [
 const languageContext = new AsyncLocalStorage();
 
 let isRunningCheck = false;
+
+function formatRuntimeError(error) {
+  if (!error) {
+    return "Unknown runtime error";
+  }
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+  if (typeof error === "object") {
+    try {
+      return JSON.stringify(error);
+    } catch (_error) {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
+async function shutdownRuntime({ code = 0, reason = "", signal = "" } = {}) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+
+  const parts = [];
+  if (signal) parts.push(`signal=${signal}`);
+  if (reason) parts.push(`reason=${reason}`);
+  console.warn(`Shutting down runtime${parts.length ? ` (${parts.join(", ")})` : ""}.`);
+
+  if (schedulerTimer) {
+    clearInterval(schedulerTimer);
+    schedulerTimer = null;
+  }
+
+  const forcedExitTimer = setTimeout(() => {
+    process.exit(code);
+  }, 10_000);
+  forcedExitTimer.unref?.();
+
+  if (dashboardHttpServer?.close) {
+    await new Promise((resolve) => {
+      try {
+        dashboardHttpServer.close((error) => {
+          if (error) {
+            console.error("Error while closing dashboard server:", formatRuntimeError(error));
+          }
+          resolve();
+        });
+      } catch (error) {
+        console.error("Dashboard server close failed:", formatRuntimeError(error));
+        resolve();
+      }
+    });
+  }
+
+  try {
+    client.destroy();
+  } catch (error) {
+    console.error("Error while destroying Discord client:", formatRuntimeError(error));
+  }
+
+  clearTimeout(forcedExitTimer);
+  process.exit(code);
+}
+
+function installRuntimeGuards() {
+  process.on("SIGINT", () => {
+    void shutdownRuntime({ code: 0, signal: "SIGINT" });
+  });
+  process.on("SIGTERM", () => {
+    void shutdownRuntime({ code: 0, signal: "SIGTERM" });
+  });
+
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught exception:", formatRuntimeError(error));
+    void shutdownRuntime({ code: 1, reason: "uncaughtException" });
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled rejection:", formatRuntimeError(reason));
+    void shutdownRuntime({ code: 1, reason: "unhandledRejection" });
+  });
+
+  process.on("warning", (warning) => {
+    console.warn("Node warning:", formatRuntimeError(warning));
+  });
+}
 
 function normalizeDisplayText(content) {
   return typeof content === "string" ? content : "";
@@ -639,6 +722,67 @@ function withRoleMention(config, content) {
   return `${roleMention}${content}`;
 }
 
+function parseDiscordApiErrorCode(error) {
+  const direct = Number(error?.code);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+  const nested = Number(error?.rawError?.code);
+  if (Number.isFinite(nested)) {
+    return nested;
+  }
+  return null;
+}
+
+function isPermanentDmFailureError(error) {
+  const code = parseDiscordApiErrorCode(error);
+  const status = Number(error?.status);
+  const message = String(error?.message || "").toLowerCase();
+  if (code === 50007 || code === 10013) {
+    return true;
+  }
+  if (status === 403) {
+    return true;
+  }
+  return (
+    message.includes("cannot send messages to this user") ||
+    message.includes("cannot send a message to this user") ||
+    message.includes("user not found")
+  );
+}
+
+function buildDmFailureResult(error) {
+  const reason = `Unable to DM user (${error?.message || "Unknown error"}).`;
+  return {
+    ok: false,
+    reason,
+    permanent: isPermanentDmFailureError(error)
+  };
+}
+
+function disableUserDmRemindersAfterPermanentFailure(userId, reason) {
+  const current = userStore.getUserConfig(userId);
+  const hasAnyDmReminderEnabled = Boolean(
+    current.dmRemindersEnabled ||
+      current.dmPrePrayerRemindersEnabled ||
+      current.dmAzkarRemindersEnabled ||
+      current.dmHadithRemindersEnabled
+  );
+  if (!hasAnyDmReminderEnabled) {
+    return;
+  }
+
+  userStore.updateUserConfig(userId, (draft) => {
+    draft.dmRemindersEnabled = false;
+    draft.dmPrePrayerRemindersEnabled = false;
+    draft.dmAzkarRemindersEnabled = false;
+    draft.dmHadithRemindersEnabled = false;
+    return draft;
+  });
+
+  console.warn(`Disabled all DM reminders for user ${userId} after permanent DM failure: ${reason}`);
+}
+
 async function sendGuildPrayerNotification(guildId, config, prayerKey, prayerTime, options = {}) {
   const isTest = options.isTest === true;
   const language = resolveConfigLanguage(config);
@@ -713,7 +857,7 @@ async function sendUserPrayerDmNotification(userId, config, prayerKey, prayerTim
   const uiText = getPrayerUiText(language);
   const user = client.users.cache.get(userId) || (await client.users.fetch(userId).catch(() => null));
   if (!user) {
-    return { ok: false, reason: "User not found." };
+    return { ok: false, reason: "User not found.", permanent: true };
   }
 
   const content = styledBlock({
@@ -731,7 +875,7 @@ async function sendUserPrayerDmNotification(userId, config, prayerKey, prayerTim
     await user.send({ content });
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: `Unable to DM user (${error.message}).` };
+    return buildDmFailureResult(error);
   }
 }
 
@@ -740,7 +884,7 @@ async function sendUserPrePrayerDmNotification(userId, config, prayerKey, prayer
   const uiText = getPrayerUiText(language);
   const user = client.users.cache.get(userId) || (await client.users.fetch(userId).catch(() => null));
   if (!user) {
-    return { ok: false, reason: "User not found." };
+    return { ok: false, reason: "User not found.", permanent: true };
   }
 
   const content = styledBlock({
@@ -759,7 +903,7 @@ async function sendUserPrePrayerDmNotification(userId, config, prayerKey, prayer
     await user.send({ content });
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: `Unable to DM user (${error.message}).` };
+    return buildDmFailureResult(error);
   }
 }
 
@@ -844,7 +988,7 @@ async function sendUserAzkarDmNotification(userId, config, options = {}) {
   const language = normalizeContentLanguage(options.language || resolveConfigLanguage(config, { dm: true }));
   const user = client.users.cache.get(userId) || (await client.users.fetch(userId).catch(() => null));
   if (!user) {
-    return { ok: false, reason: "User not found." };
+    return { ok: false, reason: "User not found.", permanent: true };
   }
 
   const { entry, nextRecentIds } = getRandomAzkar({
@@ -862,7 +1006,7 @@ async function sendUserAzkarDmNotification(userId, config, options = {}) {
       nextRecentIds
     };
   } catch (error) {
-    return { ok: false, reason: `Unable to DM user (${error.message}).` };
+    return buildDmFailureResult(error);
   }
 }
 
@@ -872,7 +1016,7 @@ async function sendUserHadithDmNotification(userId, config, options = {}) {
   const language = normalizeContentLanguage(options.language || resolveConfigLanguage(config, { dm: true }));
   const user = client.users.cache.get(userId) || (await client.users.fetch(userId).catch(() => null));
   if (!user) {
-    return { ok: false, reason: "User not found." };
+    return { ok: false, reason: "User not found.", permanent: true };
   }
 
   const { entry, nextRecentIds } = getRandomHadith({
@@ -891,7 +1035,7 @@ async function sendUserHadithDmNotification(userId, config, options = {}) {
       nextRecentIds
     };
   } catch (error) {
-    return { ok: false, reason: `Unable to DM user (${error.message}).` };
+    return buildDmFailureResult(error);
   }
 }
 
@@ -1013,6 +1157,9 @@ async function checkUserPrayerTimes(userId, config) {
         );
         if (!preResult.ok) {
           console.error(`Failed to send DM pre-prayer reminder for user ${userId}: ${preResult.reason}`);
+          if (preResult.permanent) {
+            disableUserDmRemindersAfterPermanentFailure(userId, preResult.reason);
+          }
         }
 
         userStore.updateUserConfig(userId, (draft) => {
@@ -1038,6 +1185,9 @@ async function checkUserPrayerTimes(userId, config) {
       const result = await sendUserPrayerDmNotification(userId, config, prayerKey, daily.prayers[prayerKey]);
       if (!result.ok) {
         console.error(`Failed to send DM reminder for user ${userId}: ${result.reason}`);
+        if (result.permanent) {
+          disableUserDmRemindersAfterPermanentFailure(userId, result.reason);
+        }
       }
 
       userStore.updateUserConfig(userId, (draft) => {
@@ -1122,6 +1272,9 @@ async function checkUserAzkarReminders(userId, config) {
   const result = await sendUserAzkarDmNotification(userId, config);
   if (!result.ok) {
     console.error(`Failed to send DM azkar reminder for user ${userId}: ${result.reason}`);
+    if (result.permanent) {
+      disableUserDmRemindersAfterPermanentFailure(userId, result.reason);
+    }
     return;
   }
 
@@ -1202,6 +1355,9 @@ async function checkUserHadithReminders(userId, config) {
   const result = await sendUserHadithDmNotification(userId, config);
   if (!result.ok) {
     console.error(`Failed to send DM hadith reminder for user ${userId}: ${result.reason}`);
+    if (result.permanent) {
+      disableUserDmRemindersAfterPermanentFailure(userId, result.reason);
+    }
     return;
   }
 
@@ -1227,10 +1383,10 @@ async function checkAllReminders() {
     }
 
     const allUserConfigs = userStore.getAllConfigs();
-    for (const [userId, config] of Object.entries(allUserConfigs)) {
-      await checkUserPrayerTimes(userId, config);
-      await checkUserAzkarReminders(userId, config);
-      await checkUserHadithReminders(userId, config);
+    for (const userId of Object.keys(allUserConfigs)) {
+      await checkUserPrayerTimes(userId, userStore.getUserConfig(userId));
+      await checkUserAzkarReminders(userId, userStore.getUserConfig(userId));
+      await checkUserHadithReminders(userId, userStore.getUserConfig(userId));
     }
   } catch (error) {
     console.error("Scheduler loop failed:", error.message);
@@ -1239,13 +1395,62 @@ async function checkAllReminders() {
   }
 }
 
+async function startDashboard() {
+  try {
+    dashboardHttpServer = await startDashboardServer({
+      client,
+      guildStore,
+      userStore,
+      quranVoice
+    });
+  } catch (error) {
+    console.error("Dashboard failed to start:", formatRuntimeError(error));
+    await shutdownRuntime({ code: 1, reason: "dashboard startup failure" });
+  }
+}
+
+installRuntimeGuards();
+void startDashboard();
+
+client.on("error", (error) => {
+  console.error("Discord client error:", formatRuntimeError(error));
+});
+
+client.on("shardError", (error, shardId) => {
+  console.error(`Discord shard ${shardId} error:`, formatRuntimeError(error));
+});
+
+client.on("shardDisconnect", (event, shardId) => {
+  const code = event?.code ?? "unknown";
+  const reason = event?.reason || "no reason provided";
+  console.warn(`Discord shard ${shardId} disconnected (code=${code}, reason=${reason}).`);
+});
+
+client.on("shardReconnecting", (shardId) => {
+  console.warn(`Discord shard ${shardId} reconnecting...`);
+});
+
+client.on("shardResume", (shardId, replayedEvents) => {
+  console.log(`Discord shard ${shardId} resumed (${replayedEvents} replayed events).`);
+});
+
+client.on("invalidated", () => {
+  console.error("Discord session invalidated.");
+  void shutdownRuntime({ code: 1, reason: "discord session invalidated" });
+});
+
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   await checkAllReminders();
   await quranVoice.ensureConfiguredRadios().catch((error) =>
     console.error("Failed to auto-start Quran radios:", error.message)
   );
-  setInterval(checkAllReminders, CHECK_INTERVAL_MS);
+  if (schedulerTimer) {
+    clearInterval(schedulerTimer);
+  }
+  schedulerTimer = setInterval(() => {
+    void checkAllReminders();
+  }, CHECK_INTERVAL_MS);
 });
 
 async function requireManageGuild(interaction) {
@@ -2325,7 +2530,10 @@ client.on("interactionCreate", async (interaction) => {
   });
 });
 
-client.login(token);
+client.login(token).catch((error) => {
+  console.error("Discord login failed:", formatRuntimeError(error));
+  void shutdownRuntime({ code: 1, reason: "discord login failure" });
+});
 
 
 

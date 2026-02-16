@@ -33,6 +33,13 @@ npm install
    - `CLIENT_ID`
    - `CLIENT_SECRET` (for web dashboard login)
    - `SESSION_SECRET` (for dashboard session cookies)
+   - Optional `SESSION_STORE_PATH` (defaults to `data/sessions`, persisted dashboard sessions)
+   - Optional `SESSION_TTL_SECONDS` (default `604800`, 7 days)
+   - Optional `SESSION_REAP_INTERVAL_SECONDS` (default `3600`)
+   - Optional `WEB_RATE_LIMIT_WINDOW_MS` (default `900000`)
+   - Optional `WEB_RATE_LIMIT_MAX_PUBLIC` (default `600`)
+   - Optional `WEB_RATE_LIMIT_MAX_AUTH` (default `40`)
+   - Optional `WEB_RATE_LIMIT_MAX_POST` (default `120`)
    - Optional `PRIVACY_CONTACT` (shown on `/privacy`)
    - Optional `DATA_ENCRYPTION_KEY` (encrypts `data/*.json` at rest)
    - Optional `WEB_BASE_URL` (default `http://localhost:3000`)
@@ -60,6 +67,12 @@ This starts both:
 - Discord bot client
 - Web dashboard server (default: `http://localhost:3000`)
 
+Smoke checks before promotion:
+
+```bash
+npm run verify
+```
+
 6. In Discord Developer Portal, add this OAuth2 redirect URL:
 
 ```text
@@ -71,6 +84,81 @@ http://localhost:3000/auth/callback
 ```bash
 npm run invite:url
 ```
+
+## VPS Reliability (Recommended)
+
+Running in a plain terminal means any crash/disconnect leaves the bot offline until manual restart.
+Use PM2 on your VPS so the process auto-restarts:
+
+1. Install PM2 once:
+
+```bash
+npm install -g pm2
+```
+
+2. Start with restart policy:
+
+```bash
+npm run pm2:start
+```
+
+3. Save PM2 process list:
+
+```bash
+npm run pm2:save
+```
+
+4. Enable auto-start on server reboot:
+
+```bash
+pm2 startup
+```
+
+5. Useful runtime commands:
+
+```bash
+npm run pm2:logs
+npm run pm2:restart
+```
+
+## Daily Data Backup (Windows)
+
+Back up persisted runtime data daily, including:
+- `data/guildConfigs.json`
+- `data/userConfigs.json`
+- `data/sessions/` (dashboard session store)
+
+Run an immediate backup:
+
+```bat
+run-data-backup-now.bat
+```
+
+Install a daily scheduled backup task (default: `03:15`):
+
+```bat
+setup-daily-data-backup-task.bat
+```
+
+Install at a custom time (24h format, example `02:30`):
+
+```bat
+setup-daily-data-backup-task.bat 02:30
+```
+
+Task mode:
+- The installer tries `SYSTEM` mode first (best for always-on backups).
+- If not running as Administrator, it automatically falls back to interactive mode.
+
+Backups are written to:
+- `backups/data/data-backup-YYYY-MM-DD_HHMMSS.zip`
+
+Retention:
+- Keeps 30 days by default (older zip backups are removed automatically).
+
+Session store handling:
+- The backup script automatically reads `SESSION_STORE_PATH` from `.env`.
+- If your session path is outside `data/`, it is included in the backup archive.
 
 ## Web Dashboard
 

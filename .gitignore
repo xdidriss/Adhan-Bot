@@ -5,3 +5,6 @@ yarn-error.log*
 
 # Runtime state (do not commit)
 data/*.json
+data/sessions/
+backups/
+logs/

@@ -5,9 +5,16 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:strict": "node --unhandled-rejections=strict src/index.js",
+    "test": "node --test",
     "register:commands": "node src/registerCommands.js",
     "invite:url": "node src/printInviteUrl.js",
-    "check": "node --check src/index.js && node --check src/dashboardServer.js"
+    "check": "node --check src/index.js && node --check src/dashboardServer.js",
+    "verify": "npm run check && npm test",
+    "pm2:start": "pm2 start ecosystem.config.cjs --env production",
+    "pm2:restart": "pm2 restart discord-adhan-bot",
+    "pm2:logs": "pm2 logs discord-adhan-bot",
+    "pm2:save": "pm2 save"
   },
   "engines": {
     "node": ">=18.17.0"
@@ -18,10 +25,16 @@
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "express-session": "^1.19.0",
     "ffmpeg-static": "^5.2.0",
+    "helmet": "^8.1.0",
     "luxon": "^3.5.0",
     "opusscript": "^0.0.8",
+    "session-file-store": "^1.5.0",
     "tweetnacl": "^1.0.3"
+  },
+  "overrides": {
+    "undici": "^6.23.0"
   }
 }

@@ -1,9 +1,13 @@
 ﻿const crypto = require("node:crypto");
+const fs = require("node:fs");
 const path = require("node:path");
 const discordJs = require("discord.js");
 const { ChannelType, PermissionsBitField } = discordJs;
 const express = require("express");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const session = require("express-session");
+const FileStore = require("session-file-store")(session);
 
 const { METHOD_CHOICES, SCHOOL_CHOICES } = require("./commands");
 const {
@@ -75,7 +79,7 @@ const DASHBOARD_I18N = {
     htmlLang: "en",
     htmlDir: "ltr",
     brandTitle: "Adhan Reminder",
-    brandSubtitle: "Ramadan-themed control panel",
+    brandSubtitle: "Control panel",
     inviteBot: "Invite Bot",
     addAsApp: "Add as App",
     dashboard: "Dashboard",
@@ -88,7 +92,7 @@ const DASHBOARD_I18N = {
     footerContactTitle: "Contact",
     footerContactOwnerLabel: "Owner",
     footerContactOwnerName: "Idriss",
-    footerContactEmailLabel: "Email",
+    footerContactEmailLabel: "Discord",
     languageAriaLabel: "Dashboard language",
     themeAriaLabel: "Theme",
     themeLightLabel: "Light",
@@ -232,7 +236,7 @@ const DASHBOARD_I18N = {
     htmlLang: "ar",
     htmlDir: "rtl",
     brandTitle: "منبه الأذان",
-    brandSubtitle: "لوحة تحكم بطابع رمضاني",
+    brandSubtitle: "لوحة التحكم",
     inviteBot: "دعوة البوت",
     addAsApp: "إضافة كتطبيق",
     dashboard: "لوحة التحكم",
@@ -245,7 +249,7 @@ const DASHBOARD_I18N = {
     footerContactTitle: "تواصل",
     footerContactOwnerLabel: "المالك",
     footerContactOwnerName: "إدريس",
-    footerContactEmailLabel: "البريد",
+    footerContactEmailLabel: "ديسكورد",
     languageAriaLabel: "لغة لوحة التحكم",
     themeAriaLabel: "المظهر",
     themeLightLabel: "فاتح",
@@ -1037,7 +1041,7 @@ function renderLayout({
           <div class="footer-card-title">${escapeHtml(i18n.footerContactTitle)}</div>
           <div class="footer-card-body">
             <div><strong>${escapeHtml(i18n.footerContactOwnerLabel)}:</strong> ${escapeHtml(i18n.footerContactOwnerName)}</div>
-            <div><strong>${escapeHtml(i18n.footerContactEmailLabel)}:</strong> <a href="mailto:idriss.zaghez@gmail.com">idriss.zaghez@gmail.com</a></div>
+            <div><strong>${escapeHtml(i18n.footerContactEmailLabel)}:</strong> ${escapeHtml("idriss1")}</div>
           </div>
         </div>
       </div>
@@ -2316,6 +2320,24 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
   const webPort = Number(process.env.WEB_PORT || 3000);
   const webBaseUrl = String(process.env.WEB_BASE_URL || `http://localhost:${webPort}`).replace(/\/+$/, "");
   const sessionCookieDomain = String(process.env.SESSION_COOKIE_DOMAIN || "").trim();
+  const sessionStorePath = path.resolve(
+    String(process.env.SESSION_STORE_PATH || path.join(__dirname, "..", "data", "sessions"))
+  );
+  const sessionTtlSeconds = parseBoundedInt(
+    process.env.SESSION_TTL_SECONDS,
+    60 * 60 * 24 * 7,
+    60 * 30,
+    60 * 60 * 24 * 30
+  );
+  const rateLimitWindowMs = parseBoundedInt(
+    process.env.WEB_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000,
+    60 * 1000,
+    24 * 60 * 60 * 1000
+  );
+  const publicRateLimitMax = parseBoundedInt(process.env.WEB_RATE_LIMIT_MAX_PUBLIC, 600, 50, 10_000);
+  const authRateLimitMax = parseBoundedInt(process.env.WEB_RATE_LIMIT_MAX_AUTH, 40, 5, 1_000);
+  const postRateLimitMax = parseBoundedInt(process.env.WEB_RATE_LIMIT_MAX_POST, 120, 10, 2_000);
   const baseUrlIsHttps = webBaseUrl.startsWith("https://");
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
@@ -2327,12 +2349,59 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
     console.warn("SESSION_SECRET missing; generated temporary secret for this runtime.");
   }
 
+  fs.mkdirSync(sessionStorePath, { recursive: true });
+  const sessionStore = new FileStore({
+    path: sessionStorePath,
+    ttl: sessionTtlSeconds,
+    reapInterval: parseBoundedInt(process.env.SESSION_REAP_INTERVAL_SECONDS, 60 * 60, 60, 60 * 60 * 24),
+    retries: 1,
+    logFn: () => {}
+  });
+  const publicLimiter = rateLimit({
+    windowMs: rateLimitWindowMs,
+    max: publicRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.path === "/health" || req.path.startsWith("/assets/"),
+    message: "Too many requests. Please try again later."
+  });
+  const authLimiter = rateLimit({
+    windowMs: rateLimitWindowMs,
+    max: authRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many authentication attempts. Please try again later."
+  });
+  const postLimiter = rateLimit({
+    windowMs: rateLimitWindowMs,
+    max: postRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many form submissions. Please try again later."
+  });
+
   app.set("trust proxy", 1);
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false
+    })
+  );
+  app.use(publicLimiter);
   app.use(express.urlencoded({ extended: false }));
+  app.use((req, res, next) => {
+    if (req.method !== "POST") {
+      next();
+      return;
+    }
+    postLimiter(req, res, next);
+  });
+  app.use("/auth", authLimiter);
   app.use(
     session({
       name: "adhan.sid",
       secret: sessionSecret,
+      store: sessionStore,
       resave: false,
       saveUninitialized: false,
       cookie: {
@@ -2343,7 +2412,7 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
         secure: baseUrlIsHttps,
         // Optional: share the session across subdomains (e.g. www + apex) to avoid OAuth state mismatch.
         ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
-        maxAge: 1000 * 60 * 60 * 24 * 7
+        maxAge: sessionTtlSeconds * 1000
       }
     })
   );
@@ -3504,16 +3573,32 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
   });
 
   app.get("/health", (_req, res) => {
-    res.status(200).json({ ok: true });
+    res.status(200).json({
+      ok: true,
+      discordReady: Boolean(client.isReady?.()),
+      uptimeSeconds: Math.floor(process.uptime())
+    });
+  });
+
+  app.use((error, _req, res, _next) => {
+    console.error("Dashboard request failed:", error?.stack || error?.message || error);
+    if (res.headersSent) {
+      return;
+    }
+    res.status(500).send("Internal Server Error");
   });
 
   app.use((_req, res) => {
     res.status(404).send("Not Found");
   });
 
-  app.listen(webPort, () => {
+  const server = app.listen(webPort, () => {
     console.log(`Dashboard running at ${webBaseUrl} (port ${webPort})`);
   });
+  server.on("error", (error) => {
+    console.error("Dashboard server error:", error?.stack || error?.message || error);
+  });
+  return server;
 }
 
 module.exports = {
