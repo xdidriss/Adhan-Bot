@@ -37,6 +37,8 @@ function normalizePrePrayerSelections(value) {
 const DEFAULT_GUILD_CONFIG = {
   location: null,
   reminderChannelId: null,
+  adhanReminderChannelId: null,
+  prePrayerReminderChannelId: null,
   adhanVoiceChannelId: null,
   playAdhanInVoice: false,
   mentionRoleId: null,
@@ -77,6 +79,9 @@ function normalizeGuildConfig(config) {
   normalized.language = normalizeLanguageValue(config?.language || config?.azkarLanguage || config?.hadithLanguage);
   normalized.azkarLanguage = normalizeLanguageValue(config?.azkarLanguage || normalized.language);
   normalized.hadithLanguage = normalizeLanguageValue(config?.hadithLanguage || normalized.language);
+  normalized.reminderChannelId = config?.reminderChannelId || null;
+  normalized.adhanReminderChannelId = config?.adhanReminderChannelId || null;
+  normalized.prePrayerReminderChannelId = config?.prePrayerReminderChannelId || null;
   normalized.prePrayerLeadMinutes = normalizePrePrayerLeadMinutes(config?.prePrayerLeadMinutes);
   normalized.prePrayerSelections = normalizePrePrayerSelections(config?.prePrayerSelections);
   normalized.prePrayerLastTriggered = { ...(config?.prePrayerLastTriggered || {}) };

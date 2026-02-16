@@ -189,7 +189,7 @@ Session store handling:
 ## Slash Commands
 
 - `/set-location city country [method] [school]` (country uses autocomplete selector)
-- `/set-channels reminder_channel [voice_channel] [play_voice]`
+- `/set-channels [reminder_channel] [adhan_channel] [pre_prayer_channel] [voice_channel] [play_voice]`
 - `/set-mention-role [role]`
 - `/set-azkar-reminders enabled [interval_minutes] [language]`
 - `/set-hadith-reminders enabled [hour] [minute] [min_grade] [language]`

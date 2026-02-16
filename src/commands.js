@@ -228,15 +228,29 @@ function buildCommands() {
       .addIntegerOption(addSchoolOption),
     new SlashCommandBuilder()
       .setName("set-channels")
-      .setDescription("Set reminder text channel and optional voice channel for adhan.")
+      .setDescription("Set text channels for reminders and optional voice channel for adhan.")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
       .setDMPermission(false)
       .addChannelOption((option) =>
         option
           .setName("reminder_channel")
-          .setDescription("Text channel for prayer reminders")
+          .setDescription("Text channel for azkar/hadith reminders")
           .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-          .setRequired(true)
+          .setRequired(false)
+      )
+      .addChannelOption((option) =>
+        option
+          .setName("adhan_channel")
+          .setDescription("Text channel for adhan reminders")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setRequired(false)
+      )
+      .addChannelOption((option) =>
+        option
+          .setName("pre_prayer_channel")
+          .setDescription("Text channel for pre-prayer reminders")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setRequired(false)
       )
       .addChannelOption((option) =>
         option

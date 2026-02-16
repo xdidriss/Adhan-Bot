@@ -233,6 +233,7 @@ const ARABIC_TEXT_REPLACEMENTS = [
   { pattern: /Country is required\./g, replacement: "الدولة مطلوبة." },
   { pattern: /Could not resolve that city\/country:/g, replacement: "تعذر تحديد هذه المدينة/الدولة:" },
   { pattern: /Reminder channel is not configured\. Use \/set-channels first\./g, replacement: "قناة التذكير غير مضبوطة. استخدم /set-channels أولاً." },
+  { pattern: /Adhan reminder channel is not configured\. Use \/set-channels first\./g, replacement: "قناة تذكير الأذان غير مضبوطة. استخدم /set-channels أولاً." },
   { pattern: /Location is not configured\. Use \/set-location first\./g, replacement: "الموقع غير مضبوط. استخدم /set-location أولاً." },
   { pattern: /Location is not configured\. Use \/my-location first\./g, replacement: "الموقع غير مضبوط. استخدم /my-location أولاً." },
   { pattern: /Voice playback is enabled but no voice channel is configured\./g, replacement: "تشغيل الصوت مفعّل ولكن لم يتم تحديد قناة صوتية." },
@@ -249,6 +250,9 @@ const ARABIC_TEXT_REPLACEMENTS = [
   { pattern: /DM reminders will use this location\./g, replacement: "سيتم استخدام هذا الموقع لتذكيرات الخاص." },
   { pattern: /Prayer timings will now use this location\./g, replacement: "سيتم استخدام هذا الموقع لمواقيت الصلاة." },
   { pattern: /Test message delivered to the configured reminder channel\./g, replacement: "تم إرسال الرسالة التجريبية إلى قناة التذكير المحددة." },
+  { pattern: /Test message delivered to the configured adhan reminder channel\./g, replacement: "تم إرسال الرسالة التجريبية إلى قناة تذكير الأذان المحددة." },
+  { pattern: /Adhan Reminder Channel:/g, replacement: "قناة تذكير الأذان:" },
+  { pattern: /Pre-Prayer Reminder Channel:/g, replacement: "قناة تذكير قبل الصلاة:" },
   { pattern: /Test failed:/g, replacement: "فشل الاختبار:" },
   { pattern: /The command failed due to an internal error\./g, replacement: "فشل تنفيذ الأمر بسبب خطأ داخلي." },
   { pattern: /Please try again in a moment\./g, replacement: "يرجى المحاولة مرة أخرى بعد قليل." },
@@ -635,6 +639,12 @@ function formatHadithSettingsLines(config, { dm = false } = {}) {
 
 function formatGuildConfig(config) {
   const reminderChannel = config.reminderChannelId ? `<#${config.reminderChannelId}>` : "Not set";
+  const adhanReminderChannel = getGuildAdhanReminderChannelId(config)
+    ? `<#${getGuildAdhanReminderChannelId(config)}>`
+    : "Not set";
+  const prePrayerReminderChannel = getGuildPrePrayerReminderChannelId(config)
+    ? `<#${getGuildPrePrayerReminderChannelId(config)}>`
+    : "Not set";
   const voiceChannel = config.adhanVoiceChannelId ? `<#${config.adhanVoiceChannelId}>` : "Not set";
   const mentionRole = config.mentionRoleId ? `<@&${config.mentionRoleId}>` : "None";
   const language = resolveConfigLanguage(config);
@@ -645,6 +655,8 @@ function formatGuildConfig(config) {
     lines: [
       ...formatLocationLines(config.location, { language }),
       localizeText(`${ICONS.megaphone} **Reminder Channel:** ${reminderChannel}`, language),
+      localizeText(`${ICONS.adhan} **Adhan Reminder Channel:** ${adhanReminderChannel}`, language),
+      localizeText(`${ICONS.clock} **Pre-Prayer Reminder Channel:** ${prePrayerReminderChannel}`, language),
       localizeText(`${ICONS.speaker} **Voice Channel:** ${voiceChannel}`, language),
       localizeText(`${ICONS.headset} **Voice Playback:** ${config.playAdhanInVoice ? "Enabled" : "Disabled"}`, language),
       localizeText(`${ICONS.people} **Mention Role:** ${mentionRole}`, language),
@@ -719,7 +731,18 @@ function errorResponseOptions(interaction, language = "english") {
 
 function withRoleMention(config, content) {
   const roleMention = config.mentionRoleId ? `<@&${config.mentionRoleId}> ` : "";
-  return `${roleMention}${content}`;
+  if (!roleMention) {
+    return content;
+  }
+  return `${roleMention.trim()}\n${content}`;
+}
+
+function getGuildAdhanReminderChannelId(config) {
+  return config.adhanReminderChannelId || config.reminderChannelId || null;
+}
+
+function getGuildPrePrayerReminderChannelId(config) {
+  return config.prePrayerReminderChannelId || config.reminderChannelId || null;
 }
 
 function parseDiscordApiErrorCode(error) {
@@ -787,9 +810,12 @@ async function sendGuildPrayerNotification(guildId, config, prayerKey, prayerTim
   const isTest = options.isTest === true;
   const language = resolveConfigLanguage(config);
   const uiText = getPrayerUiText(language);
-  const reminderChannel = await client.channels.fetch(config.reminderChannelId).catch(() => null);
+  const adhanReminderChannelId = getGuildAdhanReminderChannelId(config);
+  const reminderChannel = adhanReminderChannelId
+    ? await client.channels.fetch(adhanReminderChannelId).catch(() => null)
+    : null;
   if (!reminderChannel || !reminderChannel.isTextBased()) {
-    return { ok: false, reason: "Reminder channel was not found or is not text-based." };
+    return { ok: false, reason: "Adhan reminder channel was not found or is not text-based." };
   }
 
   const body = styledBlock({
@@ -830,9 +856,12 @@ async function sendGuildPrayerNotification(guildId, config, prayerKey, prayerTim
 async function sendGuildPrePrayerNotification(guildId, config, prayerKey, prayerTime, leadMinutes) {
   const language = resolveConfigLanguage(config);
   const uiText = getPrayerUiText(language);
-  const reminderChannel = await client.channels.fetch(config.reminderChannelId).catch(() => null);
+  const prePrayerReminderChannelId = getGuildPrePrayerReminderChannelId(config);
+  const reminderChannel = prePrayerReminderChannelId
+    ? await client.channels.fetch(prePrayerReminderChannelId).catch(() => null)
+    : null;
   if (!reminderChannel || !reminderChannel.isTextBased()) {
-    return { ok: false, reason: "Reminder channel was not found or is not text-based." };
+    return { ok: false, reason: "Pre-prayer reminder channel was not found or is not text-based." };
   }
 
   const body = styledBlock({
@@ -1040,7 +1069,9 @@ async function sendUserHadithDmNotification(userId, config, options = {}) {
 }
 
 async function checkGuildPrayerTimes(guildId, config) {
-  if (!config.reminderChannelId || !hasValidLocation(config)) {
+  const adhanReminderChannelId = getGuildAdhanReminderChannelId(config);
+  const prePrayerReminderChannelId = getGuildPrePrayerReminderChannelId(config);
+  if ((!adhanReminderChannelId && !prePrayerReminderChannelId) || !hasValidLocation(config)) {
     return;
   }
 
@@ -1064,7 +1095,7 @@ async function checkGuildPrayerTimes(guildId, config) {
   const preReminderSelections = normalizePrePrayerSelections(config.prePrayerSelections);
 
   for (const prayerKey of PRAYER_ORDER) {
-    if (preReminderEnabled && preReminderSelections[prayerKey]) {
+    if (preReminderEnabled && preReminderSelections[prayerKey] && prePrayerReminderChannelId) {
       const prePrayerMinute = daily.prayers[prayerKey].minus({ minutes: preReminderLeadMinutes }).startOf("minute");
       const preTriggerToken = `${daily.dateISO}:${prayerKey}:pre:${preReminderLeadMinutes}`;
       const preAlreadyTriggered = config.prePrayerLastTriggered?.[prayerKey] === preTriggerToken;
@@ -1090,6 +1121,10 @@ async function checkGuildPrayerTimes(guildId, config) {
         });
         break;
       }
+    }
+
+    if (!adhanReminderChannelId) {
+      continue;
     }
 
     const prayerMinute = daily.prayers[prayerKey].startOf("minute").toFormat("yyyy-LL-dd HH:mm");
@@ -1696,10 +1731,29 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      const reminderChannel = interaction.options.getChannel("reminder_channel", true);
+      const reminderChannel = interaction.options.getChannel("reminder_channel");
+      const adhanReminderChannel = interaction.options.getChannel("adhan_channel");
+      const prePrayerReminderChannel = interaction.options.getChannel("pre_prayer_channel");
       const voiceChannel = interaction.options.getChannel("voice_channel");
       const playVoiceOption = interaction.options.getBoolean("play_voice");
 
+      if (!reminderChannel && !adhanReminderChannel && !prePrayerReminderChannel && !voiceChannel && playVoiceOption === null) {
+        await interaction.reply({
+          content: styledError(
+            "No channel settings provided. Set reminder/adhan/pre-prayer channels, a voice channel, or play_voice."
+          ),
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      const nextReminderChannelId = reminderChannel ? reminderChannel.id : guildConfig.reminderChannelId;
+      const nextAdhanReminderChannelId = adhanReminderChannel
+        ? adhanReminderChannel.id
+        : getGuildAdhanReminderChannelId(guildConfig);
+      const nextPrePrayerReminderChannelId = prePrayerReminderChannel
+        ? prePrayerReminderChannel.id
+        : getGuildPrePrayerReminderChannelId(guildConfig);
       const nextVoiceChannelId = voiceChannel ? voiceChannel.id : guildConfig.adhanVoiceChannelId;
       const nextPlayVoice =
         playVoiceOption !== null
@@ -1717,7 +1771,9 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       guildStore.updateGuildConfig(guildId, (draft) => {
-        draft.reminderChannelId = reminderChannel.id;
+        draft.reminderChannelId = nextReminderChannelId || null;
+        draft.adhanReminderChannelId = nextAdhanReminderChannelId || null;
+        draft.prePrayerReminderChannelId = nextPrePrayerReminderChannelId || null;
         draft.adhanVoiceChannelId = nextVoiceChannelId;
         draft.playAdhanInVoice = nextPlayVoice;
         return draft;
@@ -1728,7 +1784,15 @@ client.on("interactionCreate", async (interaction) => {
           icon: ICONS.megaphone,
           title: "Channel Settings Updated",
           lines: [
-            `${ICONS.note} **Reminder Channel:** <#${reminderChannel.id}>`,
+            `${ICONS.note} **Reminder Channel:** ${
+              nextReminderChannelId ? `<#${nextReminderChannelId}>` : "Not set"
+            }`,
+            `${ICONS.adhan} **Adhan Reminder Channel:** ${
+              nextAdhanReminderChannelId ? `<#${nextAdhanReminderChannelId}>` : "Not set"
+            }`,
+            `${ICONS.clock} **Pre-Prayer Reminder Channel:** ${
+              nextPrePrayerReminderChannelId ? `<#${nextPrePrayerReminderChannelId}>` : "Not set"
+            }`,
             `${ICONS.speaker} **Voice Channel:** ${nextVoiceChannelId ? `<#${nextVoiceChannelId}>` : "Not set"}`,
             `${ICONS.headset} **Voice Playback:** ${nextPlayVoice ? "Enabled" : "Disabled"}`
           ]
@@ -1991,9 +2055,9 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      if (!guildConfig.reminderChannelId) {
+      if (!getGuildAdhanReminderChannelId(guildConfig)) {
         await interaction.reply({
-          content: styledError("Reminder channel is not configured. Use /set-channels first."),
+          content: styledError("Adhan reminder channel is not configured. Use /set-channels first."),
           flags: MessageFlags.Ephemeral
         });
         return;
@@ -2029,7 +2093,7 @@ client.on("interactionCreate", async (interaction) => {
       let response = styledBlock({
         icon: ICONS.test,
         title: "Test Reminder Sent",
-        lines: [`${ICONS.note} Test message delivered to the configured reminder channel.`],
+        lines: [`${ICONS.note} Test message delivered to the configured adhan reminder channel.`],
         language: resolveConfigLanguage(guildConfig)
       });
       const responseLanguage = resolveConfigLanguage(guildConfig);

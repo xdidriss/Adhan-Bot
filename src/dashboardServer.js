@@ -196,6 +196,8 @@ const DASHBOARD_I18N = {
     adhanChannelsSectionTitle: "Adhan and Channels",
     prePrayerSectionTitle: "Pre-Prayer Reminders",
     reminderChannelLabel: "Reminder Channel",
+    adhanReminderChannelLabel: "Adhan Reminder Channel",
+    prePrayerReminderChannelLabel: "Pre-Prayer Reminder Channel",
     voiceChannelLabel: "Voice Channel",
     mentionRoleLabel: "Mention Role",
     playAdhanVoiceLabel: "Play Adhan in Voice Channel",
@@ -245,7 +247,7 @@ const DASHBOARD_I18N = {
     privacyPolicy: "سياسة الخصوصية",
     termsOfService: "شروط الخدمة",
     footerRights: "جميع الحقوق محفوظة.",
-    footerTeamCreditsLine: "فريق سانديد — الشكر: إدريس، أيوب، جيمبي",
+    footerTeamCreditsLine: "فريق صنديد — الشكر: إدريس، أيوب، جيمبي",
     footerContactTitle: "تواصل",
     footerContactOwnerLabel: "المالك",
     footerContactOwnerName: "إدريس",
@@ -331,6 +333,8 @@ const DASHBOARD_I18N = {
     locationSectionTitle: "الموقع",
     adhanChannelsSectionTitle: "الأذان والقنوات",
     reminderChannelLabel: "قناة التذكير",
+    adhanReminderChannelLabel: "قناة تذكير الأذان",
+    prePrayerReminderChannelLabel: "قناة تذكير قبل الصلاة",
     voiceChannelLabel: "القناة الصوتية",
     mentionRoleLabel: "رتبة المنشن",
     playAdhanVoiceLabel: "تشغيل الأذان في القناة الصوتية",
@@ -656,7 +660,18 @@ function resolveConfigLanguage(config, { dm = false } = {}) {
 
 function withRoleMention(config, content) {
   const roleMention = config?.mentionRoleId ? `<@&${config.mentionRoleId}> ` : "";
-  return `${roleMention}${content}`;
+  if (!roleMention) {
+    return content;
+  }
+  return `${roleMention.trim()}\n${content}`;
+}
+
+function getGuildAdhanReminderChannelId(config) {
+  return config?.adhanReminderChannelId || config?.reminderChannelId || null;
+}
+
+function getGuildPrePrayerReminderChannelId(config) {
+  return config?.prePrayerReminderChannelId || config?.reminderChannelId || null;
 }
 
 function reminderContentCopy(language) {
@@ -1707,13 +1722,39 @@ function renderGuildSettingsPage({
       selected: Number(guildConfig.location?.school ?? 0) === choice.value
     })
   ).join("");
-  const textChannelOptions = [optionTag({ value: "", label: i18n.optionNotSet, selected: !guildConfig.reminderChannelId })]
+  const reminderChannelOptions = [optionTag({ value: "", label: i18n.optionNotSet, selected: !guildConfig.reminderChannelId })]
     .concat(
       textChannels.map((channel) =>
         optionTag({
           value: channel.id,
           label: `#${channel.name}`,
           selected: guildConfig.reminderChannelId === channel.id
+        })
+      )
+    )
+    .join("");
+  const adhanReminderChannelId = getGuildAdhanReminderChannelId(guildConfig);
+  const prePrayerReminderChannelId = getGuildPrePrayerReminderChannelId(guildConfig);
+  const adhanReminderChannelOptions = [optionTag({ value: "", label: i18n.optionNotSet, selected: !adhanReminderChannelId })]
+    .concat(
+      textChannels.map((channel) =>
+        optionTag({
+          value: channel.id,
+          label: `#${channel.name}`,
+          selected: adhanReminderChannelId === channel.id
+        })
+      )
+    )
+    .join("");
+  const prePrayerReminderChannelOptions = [
+    optionTag({ value: "", label: i18n.optionNotSet, selected: !prePrayerReminderChannelId })
+  ]
+    .concat(
+      textChannels.map((channel) =>
+        optionTag({
+          value: channel.id,
+          label: `#${channel.name}`,
+          selected: prePrayerReminderChannelId === channel.id
         })
       )
     )
@@ -1912,7 +1953,9 @@ function renderGuildSettingsPage({
         <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}" />
         <input type="hidden" name="section" value="channels" />
         <div class="form-grid">
-          <label class="field"><span>${escapeHtml(i18n.reminderChannelLabel)}</span><select name="reminderChannelId">${textChannelOptions}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.reminderChannelLabel)}</span><select name="reminderChannelId">${reminderChannelOptions}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.adhanReminderChannelLabel)}</span><select name="adhanReminderChannelId">${adhanReminderChannelOptions}</select></label>
+          <label class="field"><span>${escapeHtml(i18n.prePrayerReminderChannelLabel)}</span><select name="prePrayerReminderChannelId">${prePrayerReminderChannelOptions}</select></label>
           <label class="field"><span>${escapeHtml(i18n.voiceChannelLabel)}</span><select name="adhanVoiceChannelId">${voiceChannelOptions}</select></label>
           <label class="field"><span>${escapeHtml(i18n.mentionRoleLabel)}</span><select name="mentionRoleId">${roleOptions}</select></label>
         </div>
@@ -2990,6 +3033,9 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
 
       if (section === "channels") {
         const reminderChannelId = normalizeIdField(req.body.reminderChannelId);
+        const adhanReminderChannelId = normalizeIdField(req.body.adhanReminderChannelId);
+        const prePrayerReminderChannelId = normalizeIdField(req.body.prePrayerReminderChannelId);
+        const effectivePrePrayerChannelId = prePrayerReminderChannelId || reminderChannelId;
         const adhanVoiceChannelId = normalizeIdField(req.body.adhanVoiceChannelId);
         const mentionRoleId = normalizeIdField(req.body.mentionRoleId);
         const playAdhanInVoice = boolFromCheckbox(req.body.playAdhanInVoice);
@@ -2998,14 +3044,17 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
           throw new Error("Voice playback is enabled but no voice channel is selected.");
         }
 
-        const remindersCurrentlyEnabled =
-          Boolean(current.prePrayerRemindersEnabled) || Boolean(current.azkarRemindersEnabled) || Boolean(current.hadithRemindersEnabled);
-        if (!reminderChannelId && remindersCurrentlyEnabled) {
-          throw new Error("Disable pre-prayer/azkar/hadith reminders before clearing the reminder channel.");
+        if (!reminderChannelId && (Boolean(current.azkarRemindersEnabled) || Boolean(current.hadithRemindersEnabled))) {
+          throw new Error("Disable azkar/hadith reminders before clearing the reminder channel.");
+        }
+        if (!effectivePrePrayerChannelId && Boolean(current.prePrayerRemindersEnabled)) {
+          throw new Error("Disable pre-prayer reminders before clearing the pre-prayer reminder channel.");
         }
 
         guildStore.updateGuildConfig(guildId, (draft) => {
           draft.reminderChannelId = reminderChannelId;
+          draft.adhanReminderChannelId = adhanReminderChannelId;
+          draft.prePrayerReminderChannelId = prePrayerReminderChannelId;
           draft.adhanVoiceChannelId = adhanVoiceChannelId;
           draft.playAdhanInVoice = Boolean(playAdhanInVoice && adhanVoiceChannelId);
           draft.mentionRoleId = mentionRoleId;
@@ -3027,8 +3076,8 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
           parsePrePrayerSelectionsFromBody(req.body, "prePrayer_")
         );
 
-        if (prePrayerRemindersEnabled && !current.reminderChannelId) {
-          throw new Error("Choose a reminder channel first (Channels tab), then enable pre-prayer reminders.");
+        if (prePrayerRemindersEnabled && !getGuildPrePrayerReminderChannelId(current)) {
+          throw new Error("Choose a pre-prayer reminder channel first (Channels tab), then enable pre-prayer reminders.");
         }
 
         guildStore.updateGuildConfig(guildId, (draft) => {
@@ -3206,6 +3255,9 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
       const resolvedLocation = await resolveCityCountryLocation({ city, country, method, school });
 
       const reminderChannelId = normalizeIdField(req.body.reminderChannelId);
+      const adhanReminderChannelId = normalizeIdField(req.body.adhanReminderChannelId);
+      const prePrayerReminderChannelId = normalizeIdField(req.body.prePrayerReminderChannelId);
+      const effectivePrePrayerChannelId = prePrayerReminderChannelId || reminderChannelId;
       const adhanVoiceChannelId = normalizeIdField(req.body.adhanVoiceChannelId);
       const mentionRoleId = normalizeIdField(req.body.mentionRoleId);
       const playAdhanInVoice = boolFromCheckbox(req.body.playAdhanInVoice);
@@ -3237,13 +3289,18 @@ async function startDashboardServer({ client, guildStore, userStore, quranVoice 
       if (playAdhanInVoice && !adhanVoiceChannelId) {
         throw new Error("Voice playback is enabled but no voice channel is selected.");
       }
-      if ((prePrayerRemindersEnabled || azkarRemindersEnabled || hadithRemindersEnabled) && !reminderChannelId) {
-        throw new Error("Choose a reminder channel before enabling pre-prayer/azkar/hadith reminders.");
+      if ((azkarRemindersEnabled || hadithRemindersEnabled) && !reminderChannelId) {
+        throw new Error("Choose a reminder channel before enabling azkar/hadith reminders.");
+      }
+      if (prePrayerRemindersEnabled && !effectivePrePrayerChannelId) {
+        throw new Error("Choose a pre-prayer reminder channel before enabling pre-prayer reminders.");
       }
 
       guildStore.updateGuildConfig(guildId, (draft) => {
         draft.location = resolvedLocation;
         draft.reminderChannelId = reminderChannelId;
+        draft.adhanReminderChannelId = adhanReminderChannelId;
+        draft.prePrayerReminderChannelId = prePrayerReminderChannelId;
         draft.adhanVoiceChannelId = adhanVoiceChannelId;
         draft.playAdhanInVoice = Boolean(playAdhanInVoice && adhanVoiceChannelId);
         draft.mentionRoleId = mentionRoleId;
